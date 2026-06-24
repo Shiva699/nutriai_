@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="24" fill="#0f2d55"/>
+  <path d="M34 74h52c0-8-10-14-26-14S34 66 34 74Z" fill="#f5c5a5"/>
+  <path d="M40 68c6-10 20-14 36-6" stroke="#e6a56f" stroke-width="6" stroke-linecap="round"/>
+  <path d="M46 74c10-4 20-4 28 0" stroke="#d98b4d" stroke-width="6" stroke-linecap="round"/>
+  <text x="60" y="30" text-anchor="middle" font-size="11" fill="#adcfff" font-family="Inter, sans-serif">Lunch</text>
+  <text x="60" y="104" text-anchor="middle" font-size="10" fill="#f9dcb2" font-family="Inter, sans-serif">Pasta</text>
+</svg>
