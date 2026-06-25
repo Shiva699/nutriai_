@@ -18,6 +18,7 @@ import {
   WeightTracker,
 } from './components/Pages';
 import FoodAnalyzer from './components/FoodAnalyzer';
+import { logApiConfig } from './utils/api-debug';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -105,6 +106,11 @@ function App() {
     document.documentElement.classList.add(theme);
     localStorage.setItem('nv_theme', theme);
   }, [theme]);
+
+  // Log API configuration on app startup
+  useEffect(() => {
+    logApiConfig();
+  }, []);
 
   return (
     <BrowserRouter>

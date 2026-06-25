@@ -1,4 +1,5 @@
-const API_BASE_URL = "/api/chat";
+import { API_BASE_URL } from "../config/api";
+import { logApiCall, logApiResponse } from "../utils/api-debug";
 
 type AIResult = {
 success: boolean;
@@ -7,34 +8,44 @@ error?: string;
 };
 
 async function postToAI(
-message: string,
-meta: Record<string, any> = {}
+  message: string,
+  meta: Record<string, any> = {}
 ): Promise<AIResult> {
-try {
-const response = await fetch(API_BASE_URL, {
-method: "POST",
-headers: {
-"Content-Type": "application/json",
-},
-body: JSON.stringify({
-message,
-meta,
-}),
-});
+  try {
+    const payload = {
+      message,
+      meta,
+    };
 
-const data = await response.json();
+    logApiCall(API_BASE_URL, "POST", payload);
 
-return {
-success: data.success ?? false,
-reply: data.reply ?? "",
-error: data.error ?? "",
-};
-} catch (error: any) {
-return {
-success: false,
-error: error?.message || "Network error",
-};
-}
+    const response = await fetch(API_BASE_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    logApiResponse(API_BASE_URL, response, data);
+
+    return {
+      success: data.success ?? false,
+      reply: data.reply ?? "",
+      error: data.error ?? "",
+    };
+  } catch (error: any) {
+    console.error("❌ API Error:", error);
+    return {
+      success: false,
+      error: error?.message || "Network error",
+    };
+  }
 }
 
 export async function generateDietPlan(payload: any): Promise<string> {

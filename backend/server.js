@@ -9,32 +9,45 @@ dotenv.config({
 
 const app = express();
 
-// CORS FIX
+// CORS Configuration for Production
+const allowedOrigins = [
+  "https://nutriai-sable.vercel.app",
+  "http://localhost:5173", // For local development
+  "http://localhost:3000", // Alternative local port
+];
+
 app.use(
   cors({
-    origin: true,
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.includes(origin)) {
+        console.log(`✅ CORS: Allowed origin: ${origin}`);
+        return callback(null, true);
+      } else {
+        console.log(`❌ CORS: Blocked origin: ${origin}`);
+        return callback(new Error(`CORS policy: Origin ${origin} is not allowed`));
+      }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: [
+      "Content-Type", 
+      "Authorization", 
+      "X-Requested-With", 
+      "Origin", 
+      "Accept"
+    ],
+    optionsSuccessStatus: 200, // Some legacy browsers choke on 204
   })
 );
 
-// Extra CORS headers
+// Add security headers
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, OPTIONS"
-  );
-
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-
+  res.header("X-Content-Type-Options", "nosniff");
+  res.header("X-Frame-Options", "DENY");
+  res.header("X-XSS-Protection", "1; mode=block");
   next();
 });
 
