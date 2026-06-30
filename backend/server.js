@@ -9,41 +9,54 @@ dotenv.config({
 
 const app = express();
 
-// CORS Configuration for Production
+// Allowed Origins
 const allowedOrigins = [
   "https://nutriai-sable.vercel.app",
-  "http://localhost:5173", // For local development
-  "http://localhost:3000", // Alternative local port
+  "http://localhost:5173",
+  "http://localhost:3000",
 ];
 
+// CORS Configuration
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-      
-      if (allowedOrigins.includes(origin)) {
-        console.log(`✅ CORS: Allowed origin: ${origin}`);
+      // Allow requests without origin (Postman, curl, mobile apps)
+      if (!origin) {
         return callback(null, true);
-      } else {
-        console.log(`❌ CORS: Blocked origin: ${origin}`);
-        return callback(new Error(`CORS policy: Origin ${origin} is not allowed`));
       }
+
+      // Allow localhost
+      if (allowedOrigins.includes(origin)) {
+        console.log(`✅ CORS Allowed: ${origin}`);
+        return callback(null, true);
+      }
+
+      // Allow ALL Vercel deployments
+      if (origin.endsWith(".vercel.app")) {
+        console.log(`✅ CORS Allowed (Vercel): ${origin}`);
+        return callback(null, true);
+      }
+
+      console.log(`❌ CORS Blocked: ${origin}`);
+      return callback(
+        new Error(`CORS policy: Origin ${origin} is not allowed`)
+      );
     },
+
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: [
-      "Content-Type", 
-      "Authorization", 
-      "X-Requested-With", 
-      "Origin", 
-      "Accept"
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Origin",
+      "Accept",
     ],
-    optionsSuccessStatus: 200, // Some legacy browsers choke on 204
+    optionsSuccessStatus: 200,
   })
 );
 
-// Add security headers
+// Security Headers
 app.use((req, res, next) => {
   res.header("X-Content-Type-Options", "nosniff");
   res.header("X-Frame-Options", "DENY");
@@ -69,6 +82,7 @@ app.get("/api/debug", (req, res) => {
   });
 });
 
+// Root Route
 app.get("/", (req, res) => {
   res.send("Backend Running 🚀");
 });
@@ -76,5 +90,5 @@ app.get("/", (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
