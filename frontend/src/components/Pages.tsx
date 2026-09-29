@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, ReactNode } from 'react';
+import { Link, useInRouterContext } from 'react-router-dom';
 import { FiBarChart2, FiCheckCircle, FiClock, FiDroplet, FiHeart, FiPieChart, FiTrendingUp } from 'react-icons/fi';
 import { Header } from './Header';
 import { InsightCard } from './InsightCard';
@@ -10,6 +11,30 @@ import { generateDietPlan, askNutritionCoach, analyzeBMI, predictWeightTimeline,
 import DietPlanRenderer from './DietPlanRenderer';
 import { parseDietPlanResponse } from './dietPlanParser';
 import { sanitizeAIText } from './aiText';
+
+export function DashboardLink({
+  to,
+  children,
+  className,
+}: {
+  to: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  const inRouter = useInRouterContext();
+  if (inRouter) {
+    return (
+      <Link to={to} className={className}>
+        {children}
+      </Link>
+    );
+  }
+  return (
+    <a href={to} className={className}>
+      {children}
+    </a>
+  );
+}
 
 function getMonday(date: Date) {
   const result = new Date(date);
@@ -847,7 +872,12 @@ export function DashboardOverview() {
         </div>
         {!hasValidHealthData && (
           <p className="mt-3 text-sm text-slate-400">
-            Complete your profile to generate your AI Health Score.
+            <DashboardLink
+              to="/profile-settings"
+              className="text-slate-400 hover:text-emerald-300 underline underline-offset-4 transition focus:outline-none focus:ring-1 focus:ring-emerald-400 rounded"
+            >
+              Complete your profile to generate your AI Health Score.
+            </DashboardLink>
           </p>
         )}
         {hasValidHealthData && insightError && (
@@ -882,7 +912,18 @@ export function DashboardOverview() {
               style={{ width: `${goalCompletionPct}%` }}
             />
           </div>
-          <p className="mt-4 text-sm text-slate-400">{goalCompletionDetail}</p>
+          <p className="mt-4 text-sm text-slate-400">
+            {goalCompletionDetail === 'Complete your profile to get started.' ? (
+              <DashboardLink
+                to="/profile-settings"
+                className="text-slate-400 hover:text-emerald-300 underline underline-offset-4 transition focus:outline-none focus:ring-1 focus:ring-emerald-400 rounded"
+              >
+                Complete your profile to get started.
+              </DashboardLink>
+            ) : (
+              goalCompletionDetail
+            )}
+          </p>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="rounded-[32px] border border-white/10 bg-slate-950/80 p-6 shadow-[0_20px_50px_-35px_rgba(0,0,0,0.75)] backdrop-blur-xl">
@@ -911,7 +952,14 @@ export function DashboardOverview() {
           ) : (
             <div className="mt-6 flex flex-col items-center justify-center py-6 text-center">
               <p className="text-sm text-slate-400">No data yet</p>
-              <p className="mt-1 text-xs text-slate-500">Log entries in Weight Tracker to see weekly progress.</p>
+              <p className="mt-1 text-xs text-slate-500">
+                <DashboardLink
+                  to="/weight-tracker"
+                  className="text-slate-500 hover:text-emerald-300 underline underline-offset-4 transition focus:outline-none focus:ring-1 focus:ring-emerald-400 rounded"
+                >
+                  Log entries in Weight Tracker to see weekly progress.
+                </DashboardLink>
+              </p>
             </div>
           )}
         </motion.div>
@@ -935,7 +983,18 @@ export function DashboardOverview() {
               style={{ width: `${hydrationPct}%` }}
             />
           </div>
-          <p className="mt-4 text-sm text-slate-400">{hydrationDetail}</p>
+          <p className="mt-4 text-sm text-slate-400">
+            {hydrationDetail === 'No water intake logged today. Track your water in Water Tracker.' ? (
+              <DashboardLink
+                to="/water-tracker"
+                className="text-slate-400 hover:text-cyan-300 underline underline-offset-4 transition focus:outline-none focus:ring-1 focus:ring-cyan-400 rounded"
+              >
+                No water intake logged today. Track your water in Water Tracker.
+              </DashboardLink>
+            ) : (
+              hydrationDetail
+            )}
+          </p>
         </motion.div>
       </div>
     </div>

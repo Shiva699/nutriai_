@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { DashboardOverview, WaterTracker, getTodayDateString } from '../components/Pages';
 import * as groqService from '../services/groq';
 
@@ -1045,6 +1046,82 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
       const hydProgress = screen.getByRole('progressbar', { name: 'Hydration progress' });
       expect(hydProgress).toBeInTheDocument();
       expect(hydProgress).toHaveAttribute('aria-valuenow', '50');
+    });
+  });
+
+  describe('Dashboard Empty-State Navigation Links', () => {
+    const renderWithRouter = () => {
+      return render(
+        <MemoryRouter initialEntries={['/dashboard']}>
+          <Routes>
+            <Route path="/dashboard" element={<DashboardOverview />} />
+            <Route path="/profile-settings" element={<div>Profile Settings Page</div>} />
+            <Route path="/weight-tracker" element={<div>Weight Tracker Page</div>} />
+            <Route path="/water-tracker" element={<div>Water Tracker Page</div>} />
+          </Routes>
+        </MemoryRouter>
+      );
+    };
+
+    it('AI Health Score empty-state link navigates to the existing profile/settings route', () => {
+      renderWithRouter();
+
+      const link = screen.getByRole('link', {
+        name: 'Complete your profile to generate your AI Health Score.',
+      });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', '/profile-settings');
+
+      fireEvent.click(link);
+      expect(screen.getByText('Profile Settings Page')).toBeInTheDocument();
+    });
+
+    it('Goal Completion empty-state link navigates to profile/settings', () => {
+      renderWithRouter();
+
+      const link = screen.getByRole('link', {
+        name: 'Complete your profile to get started.',
+      });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', '/profile-settings');
+
+      fireEvent.click(link);
+      expect(screen.getByText('Profile Settings Page')).toBeInTheDocument();
+    });
+
+    it('Weekly Progress empty-state link navigates to Weight Tracker', () => {
+      renderWithRouter();
+
+      const link = screen.getByRole('link', {
+        name: 'Log entries in Weight Tracker to see weekly progress.',
+      });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', '/weight-tracker');
+
+      fireEvent.click(link);
+      expect(screen.getByText('Weight Tracker Page')).toBeInTheDocument();
+    });
+
+    it('Hydration empty-state link navigates to Water Tracker', () => {
+      renderWithRouter();
+
+      const link = screen.getByRole('link', {
+        name: /Track your water in Water Tracker/i,
+      });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', '/water-tracker');
+
+      fireEvent.click(link);
+      expect(screen.getByText('Water Tracker Page')).toBeInTheDocument();
+    });
+
+    it('preserves complete text content across empty-state descriptions', () => {
+      renderWithRouter();
+
+      expect(screen.getByText('Complete your profile to generate your AI Health Score.')).toBeInTheDocument();
+      expect(screen.getByText('Complete your profile to get started.')).toBeInTheDocument();
+      expect(screen.getByText('Log entries in Weight Tracker to see weekly progress.')).toBeInTheDocument();
+      expect(screen.getByText('No water intake logged today. Track your water in Water Tracker.')).toBeInTheDocument();
     });
   });
 });
