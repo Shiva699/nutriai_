@@ -17,7 +17,7 @@ NutriAI is a modern nutrition planning and wellness tracking application. It fea
 ## Technology Stack
 * **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, Framer Motion, Recharts, jsPDF
 * **Backend:** Node.js, Express 5, CORS, Dotenv
-* **AI Service:** Groq Cloud SDK (`openai/gpt-oss-20b` for text generation, `llama-3.2-11b-vision-preview` for food analysis)
+* **AI Service:** Groq Cloud SDK (`openai/gpt-oss-20b` for text generation, `qwen/qwen3.8-27b` for food analysis)
 * **Persistence:** Browser `localStorage`
 
 ---

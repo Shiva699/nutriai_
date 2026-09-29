@@ -134,7 +134,7 @@ curl -X POST http://localhost:5000/api/chat -H "Content-Type: application/json" 
 ## 5. Known Limitations & Edge Cases
 
 1. **Upstream AI Dependency (Groq API Key):** Live AI calls depend on a valid, unexpired `GROQ_API_KEY`. When the key is unconfigured or invalid in local development, Groq returns HTTP 401. The frontend displays graceful error fallbacks.
-2. **Food Analyzer Vision Pipeline:** The backend is configured to route food analysis requests to `llama-3.2-11b-vision-preview` with multimodal image payloads. Successful inference requires an active Groq API key with vision model permissions.
+2. **Food Analyzer Vision Pipeline:** The backend is configured to route food analysis requests to `qwen/qwen3.8-27b` with multimodal image payloads. Successful inference requires an active Groq API key with vision model permissions.
 3. **Client-Side Persistence:** Application state is stored in browser `localStorage`. Private browsing or cache clearing removes saved diet plans, weight logs, and water intake history.
 4. **CORS Development Support:** Backend CORS dynamically supports local Vite ports (`5173`, `4173`, `3000`) and loopback addresses, alongside the production Vercel deployment.
 

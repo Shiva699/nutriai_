@@ -165,7 +165,7 @@ router.post("/", async (req, res) => {
 
     const isVisionRequest = meta?.type === "food_analyzer" && Boolean(meta?.image);
     const primaryTextModel = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
-    const visionModel = process.env.GROQ_VISION_MODEL || "llama-3.2-11b-vision-preview";
+    const visionModel = process.env.GROQ_VISION_MODEL || "qwen/qwen3.8-27b";
 
     const candidateModels = isVisionRequest
       ? [visionModel]

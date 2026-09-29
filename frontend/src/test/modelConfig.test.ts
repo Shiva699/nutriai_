@@ -15,9 +15,10 @@ describe('Groq Model Configuration & Anti-Regression Suite', () => {
     expect(fileContent).toContain('openai/gpt-oss-20b');
   });
 
-  it('preserves separate vision model llama-3.2-11b-vision-preview for Food Analyzer', () => {
+  it('configures active multimodal model qwen/qwen3.8-27b for Food Analyzer', () => {
     const fileContent = fs.readFileSync(chatRoutePath, 'utf8');
-    expect(fileContent).toContain('llama-3.2-11b-vision-preview');
+    expect(fileContent).toContain('qwen/qwen3.8-27b');
+    expect(fileContent).not.toContain('llama-3.2-11b-vision-preview');
   });
 
   it('exposes available models array in test route for diagnostic verification', () => {

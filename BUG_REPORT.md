@@ -53,13 +53,13 @@ This document records genuine, reproducible defects identified through static co
   2. Click "Analyze Image".
   3. Inspect the outgoing payload and backend handler in `backend/routes/chat.js`.
 * **Expected Result:**
-  The image data (base64 data URL) is passed to a multimodal vision model (e.g., `llama-3.2-11b-vision-preview`) with image content blocks.
+  The image data (base64 data URL) is passed to a multimodal vision model (e.g., `qwen/qwen3.8-27b`) with image content blocks.
 * **Actual Result (Before Fix):**
   The frontend sent `meta: { type: "food_analyzer", image: base64 }` and `message: "Analyze food image"`. The backend ignored `meta.image` and passed only the string `"Analyze food image"` to text-only model `llama-3.3-70b-versatile`.
 * **Resolution & Fix Details:**
   In [`backend/routes/chat.js`](file:///c:/Users/251124/OneDrive/Desktop/nutriai/backend/routes/chat.js):
   - Detected `food_analyzer` requests and verified image payload existence and format.
-  - Dynamically switched model to Groq vision model `llama-3.2-11b-vision-preview`.
+  - Dynamically switched model to Groq multimodal vision model `qwen/qwen3.8-27b`.
   - Built multimodal message structure containing both text prompt and `{ type: "image_url", image_url: { url: dataUrl } }`.
   - Handled invalid/missing images gracefully with HTTP 400.
 * **Verification:**
