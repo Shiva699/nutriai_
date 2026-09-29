@@ -2336,14 +2336,14 @@ interface ProfileSettingsProps {
   setTheme: (theme: 'dark' | 'light') => void;
 }
 
-const defaultProfile: UserProfile = {
-  fullName: 'Jamie Morgan',
-  email: 'jamie@nutriai.com',
-  age: '30',
-  gender: 'Female',
-  height: '170',
-  weight: '72',
-  fitnessGoal: 'Maintain energy and lean muscle',
+const emptyProfile: UserProfile = {
+  fullName: '',
+  email: '',
+  age: '',
+  gender: '',
+  height: '',
+  weight: '',
+  fitnessGoal: '',
 };
 
 const defaultPreferences: UserPreferences = {
@@ -2354,11 +2354,23 @@ const defaultPreferences: UserPreferences = {
 export function ProfileSettings({ theme, setTheme }: ProfileSettingsProps) {
   const [profile, setProfile] = useState<UserProfile>(() => {
     const raw = localStorage.getItem('nv_user_profile');
-    if (!raw) return defaultProfile;
+    if (!raw) return emptyProfile;
     try {
-      return { ...defaultProfile, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return {
+          fullName: typeof parsed.fullName === 'string' ? parsed.fullName : (typeof parsed.name === 'string' ? parsed.name : ''),
+          email: typeof parsed.email === 'string' ? parsed.email : '',
+          age: parsed.age !== undefined && parsed.age !== null ? String(parsed.age) : '',
+          gender: typeof parsed.gender === 'string' ? parsed.gender : '',
+          height: parsed.height !== undefined && parsed.height !== null ? String(parsed.height) : '',
+          weight: parsed.weight !== undefined && parsed.weight !== null ? String(parsed.weight) : '',
+          fitnessGoal: typeof parsed.fitnessGoal === 'string' ? parsed.fitnessGoal : '',
+        };
+      }
+      return emptyProfile;
     } catch {
-      return defaultProfile;
+      return emptyProfile;
     }
   });
 
@@ -2366,17 +2378,89 @@ export function ProfileSettings({ theme, setTheme }: ProfileSettingsProps) {
     const raw = localStorage.getItem('nv_user_preferences');
     if (!raw) return defaultPreferences;
     try {
-      return { ...defaultPreferences, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return {
+          weeklyReminders: parsed.weeklyReminders !== false,
+          aiCoachSuggestions: parsed.aiCoachSuggestions !== false,
+        };
+      }
+      return defaultPreferences;
     } catch {
       return defaultPreferences;
     }
   });
 
   const [savedMessage, setSavedMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const validate = (): string | null => {
+    if (profile.age.trim()) {
+      const ageNum = Number(profile.age);
+      if (isNaN(ageNum) || !Number.isInteger(ageNum) || ageNum < 13 || ageNum > 120) {
+        return 'Please enter a valid age between 13 and 120.';
+      }
+    }
+
+    if (profile.height.trim()) {
+      const heightNum = Number(profile.height);
+      if (isNaN(heightNum) || !isFinite(heightNum) || heightNum < 50 || heightNum > 260) {
+        return 'Please enter a valid height between 50 and 260 cm.';
+      }
+    }
+
+    if (profile.weight.trim()) {
+      const weightNum = Number(profile.weight);
+      if (isNaN(weightNum) || !isFinite(weightNum) || weightNum < 20 || weightNum > 400) {
+        return 'Please enter a valid weight between 20 and 400 kg.';
+      }
+    }
+
+    if (profile.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(profile.email.trim())) {
+        return 'Please enter a valid email address.';
+      }
+    }
+
+    return null;
+  };
 
   const saveSettings = () => {
-    localStorage.setItem('nv_user_profile', JSON.stringify(profile));
+    const error = validate();
+    if (error) {
+      setErrorMessage(error);
+      setSavedMessage('');
+      return;
+    }
+
+    setErrorMessage('');
+
+    const cleanProfile: UserProfile = {
+      fullName: profile.fullName.trim(),
+      email: profile.email.trim(),
+      age: profile.age.trim(),
+      gender: profile.gender.trim(),
+      height: profile.height.trim(),
+      weight: profile.weight.trim(),
+      fitnessGoal: profile.fitnessGoal.trim(),
+    };
+
+    localStorage.setItem('nv_user_profile', JSON.stringify(cleanProfile));
     localStorage.setItem('nv_user_preferences', JSON.stringify(preferences));
+
+    if (cleanProfile.fullName) {
+      localStorage.setItem('nv_user_name', cleanProfile.fullName);
+    } else {
+      localStorage.removeItem('nv_user_name');
+    }
+
+    if (cleanProfile.height) {
+      localStorage.setItem('nv_user_height', cleanProfile.height);
+    } else {
+      localStorage.removeItem('nv_user_height');
+    }
+
     setSavedMessage('Profile settings saved successfully.');
     window.setTimeout(() => setSavedMessage(''), 3000);
   };
@@ -2390,12 +2474,12 @@ export function ProfileSettings({ theme, setTheme }: ProfileSettingsProps) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[32px] border border-white/10 bg-slate-950/80 p-8 shadow-[0_30px_70px_-40px_rgba(5,12,31,0.9)] backdrop-blur-xl">
+      <div className="rounded-[32px] border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-slate-950/80 p-8 shadow-[0_20px_50px_-30px_rgba(0,0,0,0.07)] dark:shadow-[0_30px_70px_-40px_rgba(5,12,31,0.9)] backdrop-blur-xl">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-emerald-300/70">Profile Settings</p>
-            <h1 className="mt-3 text-3xl font-semibold text-white">Manage your account and preferences.</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-400">
+            <p className="text-sm uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-300/70">Profile Settings</p>
+            <h1 className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">Manage your account and preferences.</h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
               Keep your personal details up to date and control the way NutriVision supports your daily routine.
             </p>
           </div>
@@ -2403,124 +2487,164 @@ export function ProfileSettings({ theme, setTheme }: ProfileSettingsProps) {
             <button
               type="button"
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+              className="rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 px-5 py-3 text-sm font-semibold text-slate-800 dark:text-white transition hover:bg-slate-200 dark:hover:bg-white/10"
             >
               {theme === 'dark' ? 'Switch to Light' : 'Switch to Dark'}
             </button>
             <button
               type="button"
               onClick={saveSettings}
-              className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
+              className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400"
             >
               Save changes
             </button>
           </div>
         </div>
+        {errorMessage && (
+          <div role="alert" className="mt-6 rounded-3xl border border-amber-500/20 bg-amber-500/10 px-5 py-3 text-sm text-amber-600 dark:text-amber-400">
+            {errorMessage}
+          </div>
+        )}
         {savedMessage && (
-          <div className="mt-6 rounded-3xl bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+          <div role="status" className="mt-6 rounded-3xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 text-sm text-emerald-600 dark:text-emerald-300">
             {savedMessage}
           </div>
         )}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
-          <h2 className="text-lg font-semibold text-white">Account info</h2>
+        <div className="rounded-[32px] border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-white/5 p-6 shadow-[0_20px_50px_-30px_rgba(0,0,0,0.07)]">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Account info</h2>
           <div className="mt-6 grid gap-4">
-            <label className="block text-sm text-slate-300">
-              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Full name</span>
+            <div>
+              <label htmlFor="profile-fullName" className="block text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                Full name
+              </label>
               <input
+                id="profile-fullName"
                 type="text"
                 value={profile.fullName}
                 onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
-                className="mt-2 w-full rounded-3xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-400"
+                placeholder="e.g., Alex Morgan"
+                className="mt-2 w-full rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-4 py-3 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none focus:border-emerald-500 dark:focus:border-cyan-400 transition"
               />
-            </label>
+            </div>
 
-            <label className="block text-sm text-slate-300">
-              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Email address</span>
+            <div>
+              <label htmlFor="profile-email" className="block text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                Email address
+              </label>
               <input
+                id="profile-email"
                 type="email"
                 value={profile.email}
                 onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                className="mt-2 w-full rounded-3xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-400"
+                placeholder="e.g., alex@example.com"
+                className="mt-2 w-full rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-4 py-3 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none focus:border-emerald-500 dark:focus:border-cyan-400 transition"
               />
-            </label>
+            </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block text-sm text-slate-300">
-                <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Age</span>
+              <div>
+                <label htmlFor="profile-age" className="block text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                  Age
+                </label>
                 <input
+                  id="profile-age"
                   type="number"
                   min={13}
+                  max={120}
                   value={profile.age}
                   onChange={(e) => setProfile({ ...profile, age: e.target.value })}
-                  className="mt-2 w-full rounded-3xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-400"
+                  placeholder="e.g., 28"
+                  className="mt-2 w-full rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-4 py-3 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none focus:border-emerald-500 dark:focus:border-cyan-400 transition"
                 />
-              </label>
-              <label className="block text-sm text-slate-300">
-                <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Gender</span>
+              </div>
+              <div>
+                <label htmlFor="profile-gender" className="block text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                  Gender
+                </label>
                 <select
+                  id="profile-gender"
                   value={profile.gender}
                   onChange={(e) => setProfile({ ...profile, gender: e.target.value })}
-                  className="mt-2 w-full rounded-3xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-400"
+                  className="mt-2 w-full rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-4 py-3 text-slate-900 dark:text-white outline-none focus:border-emerald-500 dark:focus:border-cyan-400 transition"
                 >
-                  <option>Female</option>
-                  <option>Male</option>
-                  <option>Non-binary</option>
-                  <option>Prefer not to say</option>
+                  <option value="">Select gender</option>
+                  <option value="Female">Female</option>
+                  <option value="Male">Male</option>
+                  <option value="Non-binary">Non-binary</option>
+                  <option value="Prefer not to say">Prefer not to say</option>
                 </select>
-              </label>
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block text-sm text-slate-300">
-                <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Height (cm)</span>
+              <div>
+                <label htmlFor="profile-height" className="block text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                  Height (cm)
+                </label>
                 <input
+                  id="profile-height"
                   type="number"
-                  min={120}
+                  min={50}
+                  max={260}
                   value={profile.height}
                   onChange={(e) => setProfile({ ...profile, height: e.target.value })}
-                  className="mt-2 w-full rounded-3xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-400"
+                  placeholder="e.g., 175"
+                  className="mt-2 w-full rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-4 py-3 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none focus:border-emerald-500 dark:focus:border-cyan-400 transition"
                 />
-              </label>
-              <label className="block text-sm text-slate-300">
-                <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Weight (kg)</span>
+              </div>
+              <div>
+                <label htmlFor="profile-weight" className="block text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                  Weight (kg)
+                </label>
                 <input
+                  id="profile-weight"
                   type="number"
-                  min={30}
+                  min={20}
+                  max={400}
+                  step="0.1"
                   value={profile.weight}
                   onChange={(e) => setProfile({ ...profile, weight: e.target.value })}
-                  className="mt-2 w-full rounded-3xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-400"
+                  placeholder="e.g., 70"
+                  className="mt-2 w-full rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-4 py-3 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none focus:border-emerald-500 dark:focus:border-cyan-400 transition"
                 />
-              </label>
+              </div>
             </div>
 
-            <label className="block text-sm text-slate-300">
-              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Fitness goal</span>
+            <div>
+              <label htmlFor="profile-fitnessGoal" className="block text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                Fitness goal
+              </label>
               <input
+                id="profile-fitnessGoal"
                 type="text"
                 value={profile.fitnessGoal}
                 onChange={(e) => setProfile({ ...profile, fitnessGoal: e.target.value })}
-                className="mt-2 w-full rounded-3xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-400"
+                placeholder="e.g., Build lean muscle and maintain energy"
+                className="mt-2 w-full rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-4 py-3 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 outline-none focus:border-emerald-500 dark:focus:border-cyan-400 transition"
               />
-            </label>
+            </div>
           </div>
         </div>
 
-        <div className="rounded-[32px] border border-white/10 bg-slate-950/80 p-6">
-          <h2 className="text-lg font-semibold text-white">Preferences</h2>
-          <div className="mt-6 space-y-4 text-sm text-slate-300">
-            <div className="rounded-3xl bg-white/5 px-4 py-4">
+        <div className="rounded-[32px] border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-slate-950/80 p-6 shadow-[0_20px_50px_-30px_rgba(0,0,0,0.07)]">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Preferences</h2>
+          <div className="mt-6 space-y-4 text-sm text-slate-600 dark:text-slate-300">
+            <div className="rounded-3xl border border-slate-200/60 dark:border-transparent bg-slate-50 dark:bg-white/5 px-5 py-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="font-semibold text-white">Weekly reminder emails</p>
-                  <p className="mt-1 text-slate-400">Receive a progress summary and tips every week.</p>
+                  <p className="font-semibold text-slate-900 dark:text-white">Weekly reminder emails</p>
+                  <p className="mt-1 text-slate-500 dark:text-slate-400">Receive a progress summary and tips every week.</p>
                 </div>
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={preferences.weeklyReminders}
+                  aria-label="Toggle weekly reminder emails"
                   onClick={() => togglePreference('weeklyReminders')}
-                  className={`h-11 w-20 rounded-full p-1 transition ${preferences.weeklyReminders ? 'bg-emerald-500/20' : 'bg-slate-800'}`}
+                  className={`h-11 w-20 rounded-full p-1 transition ${preferences.weeklyReminders ? 'bg-emerald-500/20' : 'bg-slate-200 dark:bg-slate-800'}`}
                 >
                   <span
                     className={`block h-9 w-9 rounded-full bg-white shadow transition ${preferences.weeklyReminders ? 'translate-x-11' : 'translate-x-0'}`}
@@ -2528,16 +2652,19 @@ export function ProfileSettings({ theme, setTheme }: ProfileSettingsProps) {
                 </button>
               </div>
             </div>
-            <div className="rounded-3xl bg-white/5 px-4 py-4">
+            <div className="rounded-3xl border border-slate-200/60 dark:border-transparent bg-slate-50 dark:bg-white/5 px-5 py-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="font-semibold text-white">AI coach suggestions</p>
-                  <p className="mt-1 text-slate-400">Enable custom prompts and feedback from your AI coach.</p>
+                  <p className="font-semibold text-slate-900 dark:text-white">AI coach suggestions</p>
+                  <p className="mt-1 text-slate-500 dark:text-slate-400">Enable custom prompts and feedback from your AI coach.</p>
                 </div>
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={preferences.aiCoachSuggestions}
+                  aria-label="Toggle AI coach suggestions"
                   onClick={() => togglePreference('aiCoachSuggestions')}
-                  className={`h-11 w-20 rounded-full p-1 transition ${preferences.aiCoachSuggestions ? 'bg-emerald-500/20' : 'bg-slate-800'}`}
+                  className={`h-11 w-20 rounded-full p-1 transition ${preferences.aiCoachSuggestions ? 'bg-emerald-500/20' : 'bg-slate-200 dark:bg-slate-800'}`}
                 >
                   <span
                     className={`block h-9 w-9 rounded-full bg-white shadow transition ${preferences.aiCoachSuggestions ? 'translate-x-11' : 'translate-x-0'}`}
@@ -2545,16 +2672,19 @@ export function ProfileSettings({ theme, setTheme }: ProfileSettingsProps) {
                 </button>
               </div>
             </div>
-            <div className="rounded-3xl bg-white/5 px-4 py-4">
+            <div className="rounded-3xl border border-slate-200/60 dark:border-transparent bg-slate-50 dark:bg-white/5 px-5 py-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="font-semibold text-white">Dark mode</p>
-                  <p className="mt-1 text-slate-400">Toggle the app theme instantly.</p>
+                  <p className="font-semibold text-slate-900 dark:text-white">Dark mode</p>
+                  <p className="mt-1 text-slate-500 dark:text-slate-400">Toggle the app theme instantly.</p>
                 </div>
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={theme === 'dark'}
+                  aria-label="Toggle dark mode"
                   onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                  className={`h-11 w-20 rounded-full p-1 transition ${theme === 'dark' ? 'bg-emerald-500/20' : 'bg-slate-800'}`}
+                  className={`h-11 w-20 rounded-full p-1 transition ${theme === 'dark' ? 'bg-emerald-500/20' : 'bg-slate-200 dark:bg-slate-800'}`}
                 >
                   <span
                     className={`block h-9 w-9 rounded-full bg-white shadow transition ${theme === 'dark' ? 'translate-x-11' : 'translate-x-0'}`}
