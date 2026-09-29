@@ -160,6 +160,32 @@ function getValidUserProfile(): UserProfile | null {
   }
 }
 
+function getSavedUserName(): string | null {
+  try {
+    const profile = getValidUserProfile();
+    if (profile) {
+      const candidate = typeof profile.fullName === 'string' && profile.fullName.trim()
+        ? profile.fullName.trim()
+        : typeof profile.name === 'string' && profile.name.trim()
+        ? profile.name.trim()
+        : null;
+      if (candidate && candidate !== 'undefined' && candidate !== 'null') {
+        return candidate;
+      }
+    }
+    const rawName = localStorage.getItem('nv_user_name');
+    if (rawName && typeof rawName === 'string') {
+      const trimmed = rawName.trim();
+      if (trimmed && trimmed !== 'undefined' && trimmed !== 'null') {
+        return trimmed;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function getTodayDateString(): string {
   const now = new Date();
   const year = now.getFullYear();
@@ -480,6 +506,7 @@ export function DashboardOverview() {
   const [aiHealthScore, setAiHealthScore] = useState<string | null>(null);
   const [dailyInsight, setDailyInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
+  const savedUserName = useMemo(() => getSavedUserName(), []);
 
   const {
     checkinText,
@@ -793,7 +820,9 @@ export function DashboardOverview() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-300/70">Dashboard Overview</p>
-            <h1 className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">Welcome back, health champion.</h1>
+            <h1 className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">
+              {savedUserName ? `Welcome back, ${savedUserName}.` : 'Welcome back, health champion.'}
+            </h1>
           </div>
           <div className="rounded-3xl border border-slate-200/60 dark:border-white/5 bg-slate-100 dark:bg-white/5 px-5 py-4 text-sm text-slate-700 dark:text-slate-300 shadow-inner shadow-slate-200/50 dark:shadow-black/20">
             <p className="font-semibold text-slate-900 dark:text-white">Your next check-in</p>
@@ -840,7 +869,7 @@ export function DashboardOverview() {
                 <p className="mt-4 text-3xl font-semibold text-slate-900 dark:text-white">{card.value}</p>
               </div>
               <div className={`flex h-14 w-14 items-center justify-center rounded-3xl bg-gradient-to-br ${card.accent} text-white shadow-lg shadow-slate-950/20`}>
-                <card.icon className="h-6 w-6" />
+                <card.icon className="h-6 w-6" aria-hidden="true" />
               </div>
             </div>
             <p className="mt-5 text-sm text-slate-500 dark:text-slate-400">{card.detail}</p>
@@ -860,6 +889,7 @@ export function DashboardOverview() {
             <button
               onClick={loadInsights}
               disabled={!hasValidHealthData || loadingInsight}
+              aria-label={loadingInsight ? 'Generating AI Health Score' : 'Refresh AI Health Score'}
               className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
                 !hasValidHealthData || loadingInsight
                   ? 'bg-slate-200 dark:bg-emerald-500/20 text-slate-400 dark:text-slate-500 cursor-not-allowed'
@@ -907,6 +937,7 @@ export function DashboardOverview() {
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={goalCompletionPct}
+              aria-valuetext={`${goalCompletionPct}% completed`}
               aria-label="Goal completion progress"
               className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-400 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition-all duration-500"
               style={{ width: `${goalCompletionPct}%` }}
@@ -935,7 +966,7 @@ export function DashboardOverview() {
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{weeklyProgressStatus}</p>
               )}
             </div>
-            <FiTrendingUp className="h-6 w-6 text-emerald-500 dark:text-emerald-300" />
+            <FiTrendingUp className="h-6 w-6 text-emerald-500 dark:text-emerald-300" aria-hidden="true" />
           </div>
           {validHistory.length > 0 ? (
             <div className="mt-6 space-y-3">
@@ -970,7 +1001,7 @@ export function DashboardOverview() {
               <p className="text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Hydration profile</p>
               <h2 className="mt-3 text-xl font-semibold text-slate-900 dark:text-white">{hydrationText}</h2>
             </div>
-            <FiDroplet className="h-6 w-6 text-cyan-500 dark:text-cyan-300" />
+            <FiDroplet className="h-6 w-6 text-cyan-500 dark:text-cyan-300" aria-hidden="true" />
           </div>
           <div className="mt-6 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
             <div
@@ -978,6 +1009,7 @@ export function DashboardOverview() {
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={hydrationPct}
+              aria-valuetext={`${hydrationPct}% of goal`}
               aria-label="Hydration progress"
               className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-400 shadow-[0_0_18px_rgba(56,189,248,0.35)] transition-all duration-500"
               style={{ width: `${hydrationPct}%` }}
@@ -2285,6 +2317,7 @@ export function SavedPlans() {
 
 interface UserProfile {
   fullName: string;
+  name?: string;
   email: string;
   age: string;
   gender: string;

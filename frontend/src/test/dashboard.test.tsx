@@ -1164,5 +1164,80 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
       expect(link.className).toContain('dark:text-slate-400');
     });
   });
+
+  describe('STEP 7F - Dashboard UI Polish, Accessibility, and Greeting Suite', () => {
+    it('greets user with their genuine saved profile name when present', () => {
+      localStorage.setItem('nv_user_profile', JSON.stringify({ fullName: 'Sarah Connor' }));
+      render(<DashboardOverview />);
+
+      expect(screen.getByRole('heading', { name: 'Welcome back, Sarah Connor.' })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Welcome back, health champion.' })).not.toBeInTheDocument();
+    });
+
+    it('greets user with profile name property if fullName is not set', () => {
+      localStorage.setItem('nv_user_profile', JSON.stringify({ name: 'Alex' }));
+      render(<DashboardOverview />);
+
+      expect(screen.getByRole('heading', { name: 'Welcome back, Alex.' })).toBeInTheDocument();
+    });
+
+    it('falls back to neutral greeting when profile has no name or only whitespace', () => {
+      localStorage.setItem('nv_user_profile', JSON.stringify({ fullName: '   ' }));
+      render(<DashboardOverview />);
+
+      expect(screen.getByRole('heading', { name: 'Welcome back, health champion.' })).toBeInTheDocument();
+    });
+
+    it('provides descriptive aria-label on AI Health Score refresh button', () => {
+      render(<DashboardOverview />);
+
+      const refreshBtn = screen.getByRole('button', { name: 'Refresh AI Health Score' });
+      expect(refreshBtn).toBeInTheDocument();
+    });
+
+    it('provides accessible aria-valuetext on progress indicators', () => {
+      localStorage.setItem('nv_user_profile', JSON.stringify({
+        fullName: 'Sarah',
+        fitnessGoal: 'Lose weight',
+      }));
+      localStorage.setItem('nv_water_consumed', '1500');
+      localStorage.setItem('nv_water_goal', '2000');
+      localStorage.setItem('nv_water_date', 'Today');
+
+      render(<DashboardOverview />);
+
+      const hydProgress = screen.getByRole('progressbar', { name: 'Hydration progress' });
+      expect(hydProgress).toHaveAttribute('aria-valuetext', '75% of goal');
+
+      const goalProgress = screen.getByRole('progressbar', { name: 'Goal completion progress' });
+      expect(goalProgress).toHaveAttribute('aria-valuetext', '75% completed');
+    });
+
+    it('marks decorative card icons with aria-hidden="true"', () => {
+      const { container } = render(<DashboardOverview />);
+
+      const hiddenIcons = container.querySelectorAll('svg[aria-hidden="true"]');
+      expect(hiddenIcons.length).toBeGreaterThanOrEqual(6);
+    });
+
+    it('maintains synchronized data between top Water Intake summary KPI and bottom Hydration Profile', () => {
+      localStorage.setItem('nv_water_consumed', '1500');
+      localStorage.setItem('nv_water_goal', '2000');
+      localStorage.setItem('nv_water_date', 'Today');
+
+      render(<DashboardOverview />);
+
+      // Top KPI card displays daily volume and goal percentage
+      expect(screen.getByText('Water intake')).toBeInTheDocument();
+      expect(screen.getByText('1.5 L')).toBeInTheDocument();
+      expect(screen.getByText('75% of goal')).toBeInTheDocument();
+
+      // Bottom Hydration Profile displays ratio, progress bar, and motivation
+      expect(screen.getByText('Hydration profile')).toBeInTheDocument();
+      expect(screen.getByText('1.5L / 2.0L')).toBeInTheDocument();
+      expect(screen.getByRole('progressbar', { name: 'Hydration progress' })).toHaveAttribute('aria-valuenow', '75');
+      expect(screen.getByText('Stay on track by adding a glass of water throughout the day.')).toBeInTheDocument();
+    });
+  });
 });
 
