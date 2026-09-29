@@ -355,14 +355,48 @@ export function DashboardOverview() {
       waterDetail = `${hydrationData.pct}% of goal`;
     }
 
+    const isValidNum = (val: unknown): boolean => {
+      if (val === null || val === undefined) return false;
+      if (typeof val === 'number') return !isNaN(val) && isFinite(val) && val > 0;
+      if (typeof val === 'string') {
+        const s = val.trim();
+        if (!s || s === '--' || s === '-') return false;
+        const n = Number(s);
+        return !isNaN(n) && isFinite(n) && n > 0;
+      }
+      return false;
+    };
+
     // 7. Goal completion
     let compText = 'No data yet';
     let compPct = 0;
     let compDetail = 'Complete your profile to get started.';
 
-    const hasProfileGoal = Boolean(userProfile && (userProfile.fitnessGoal?.trim() || userProfile.weight || userProfile.height));
-    const hasDietGoal = Boolean(localStorage.getItem('nv_diet_goal') || localStorage.getItem('nv_diet_plan'));
-    const hasOverallGoal = hasProfileGoal || hasDietGoal;
+    const hasProfileGoal = Boolean(
+      userProfile && (
+        (typeof userProfile.fitnessGoal === 'string' && userProfile.fitnessGoal.trim().length > 0) ||
+        isValidNum(userProfile.weight) ||
+        isValidNum(userProfile.height)
+      )
+    );
+    const rawDietGoal = localStorage.getItem('nv_diet_goal');
+    const rawDietPlan = localStorage.getItem('nv_diet_plan');
+    const hasDietGoal = Boolean(
+      (typeof rawDietGoal === 'string' && rawDietGoal.trim().length > 0) ||
+      (typeof rawDietPlan === 'string' && rawDietPlan.trim().length > 0)
+    );
+    const rawGoalWeight = localStorage.getItem('nv_goal_weight');
+    const hasWeightGoal = Boolean(
+      rawGoalWeight &&
+      isValidNum(rawGoalWeight) &&
+      weightVal !== null &&
+      typeof weightVal === 'number' &&
+      !isNaN(weightVal) &&
+      isFinite(weightVal) &&
+      weightVal > 0
+    );
+
+    const hasOverallGoal = hasProfileGoal || hasDietGoal || hasWeightGoal;
 
     if (!hasOverallGoal) {
       compText = 'No data yet';
@@ -372,38 +406,50 @@ export function DashboardOverview() {
       const goals: number[] = [];
 
       // Nutrition goal: active if diet plan generated
-      const rawDietPlan = localStorage.getItem('nv_diet_plan');
-      const hasMealPlan = Boolean(rawDietPlan && rawDietPlan.trim());
+      const hasMealPlan = Boolean(typeof rawDietPlan === 'string' && rawDietPlan.trim().length > 0);
       goals.push(hasMealPlan ? 100 : 0);
 
-      // Hydration goal: tracked if water was logged
+      // Hydration goal: tracked if water was logged for today
       if (waterConsumedVal !== null && waterGoalVal !== null && waterGoalVal > 0) {
-        const waterPct = Math.min(100, Math.round((waterConsumedVal / waterGoalVal) * 100));
+        const rawWaterPct = Math.round((waterConsumedVal / waterGoalVal) * 100);
+        const waterPct = Math.min(100, Math.max(0, isNaN(rawWaterPct) || !isFinite(rawWaterPct) ? 0 : rawWaterPct));
         goals.push(waterPct);
       } else {
         goals.push(0);
       }
 
-      // Weight goal: included if user set a goal weight
-      const rawGoalWeight = localStorage.getItem('nv_goal_weight');
-      if (rawGoalWeight && !isNaN(Number(rawGoalWeight)) && Number(rawGoalWeight) > 0 && weightVal !== null) {
-        const targetW = Number(rawGoalWeight);
-        const diff = Math.abs(weightVal - targetW);
-        const weightPct = diff <= 0.5 ? 100 : Math.min(100, Math.max(0, Math.round((1 - diff / targetW) * 100)));
-        goals.push(weightPct);
+      // Weight goal: included if user set a goal weight and has a recorded current weight
+      if (hasWeightGoal && rawGoalWeight && weightVal !== null) {
+        const targetW = Number(rawGoalWeight.trim());
+        if (!isNaN(targetW) && isFinite(targetW) && targetW > 0) {
+          const diff = Math.abs(weightVal - targetW);
+          const weightPct = diff <= 0.5 ? 100 : Math.min(100, Math.max(0, Math.round((1 - diff / targetW) * 100)));
+          if (!isNaN(weightPct) && isFinite(weightPct)) {
+            goals.push(weightPct);
+          }
+        }
       }
 
-      const avg = Math.round(goals.reduce((sum, v) => sum + v, 0) / goals.length);
-      compPct = Math.min(100, Math.max(0, avg));
-      if (compPct > 0) {
-        compText = `${compPct}% completed`;
-        compDetail = compPct >= 100
-          ? 'All active health and nutrition targets on track!'
-          : `${compPct}% of your active daily targets achieved.`;
-      } else {
-        compText = 'Profile active';
+      if (goals.length === 0) {
+        compText = 'No data yet';
         compPct = 0;
-        compDetail = 'Track daily water and meals to measure goal completion.';
+        compDetail = 'Complete your profile to get started.';
+      } else {
+        const validGoals = goals.filter((g) => typeof g === 'number' && !isNaN(g) && isFinite(g));
+        const sum = validGoals.reduce((acc, v) => acc + Math.min(100, Math.max(0, v)), 0);
+        const avg = validGoals.length > 0 ? Math.round(sum / validGoals.length) : 0;
+        compPct = Math.min(100, Math.max(0, avg));
+
+        if (compPct > 0) {
+          compText = `${compPct}% completed`;
+          compDetail = compPct >= 100
+            ? 'All active health and nutrition targets on track!'
+            : `${compPct}% of your active daily targets achieved.`;
+        } else {
+          compText = 'Profile active';
+          compPct = 0;
+          compDetail = 'Track daily water and meals to measure goal completion.';
+        }
       }
     }
 
@@ -437,18 +483,6 @@ export function DashboardOverview() {
         ? 'Daily hydration goal achieved! Great job staying hydrated.'
         : 'Stay on track by adding a glass of water throughout the day.';
     }
-
-    const isValidNum = (val: unknown): boolean => {
-      if (val === null || val === undefined) return false;
-      if (typeof val === 'number') return !isNaN(val) && val > 0;
-      if (typeof val === 'string') {
-        const s = val.trim();
-        if (!s || s === '--' || s === '-') return false;
-        const n = Number(s);
-        return !isNaN(n) && n > 0;
-      }
-      return false;
-    };
 
     const hasValidHealth = Boolean(
       userProfile &&
