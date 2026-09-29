@@ -56,20 +56,69 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
     expect(screen.getByText('Daily target (maintenance)')).toBeInTheDocument();
   });
 
-  it('TEST 2 (continued): user with actual water intake displays real consumed and progress percentage', () => {
-    localStorage.setItem('nv_water_consumed', '1500');
+  it('Goal Completion must NOT show 100% completed merely because hydration goal is complete', () => {
+    // 100% hydration logged, but NO profile or overall goals exist
+    localStorage.setItem('nv_water_consumed', '2000');
     localStorage.setItem('nv_water_goal', '2000');
 
     render(<DashboardOverview />);
 
-    // Water intake card
-    expect(screen.getByText('1.5 L')).toBeInTheDocument();
-    expect(screen.getByText('75% of goal')).toBeInTheDocument();
+    // Hydration profile card correctly reflects 2.0L / 2.0L and 100% of goal
+    expect(screen.getByText('2.0 L')).toBeInTheDocument();
+    expect(screen.getByText('100% of goal')).toBeInTheDocument();
+    expect(screen.getByText('2.0L / 2.0L')).toBeInTheDocument();
+    expect(screen.getByText('Daily hydration goal achieved! Great job staying hydrated.')).toBeInTheDocument();
 
-    // Hydration profile card
-    expect(screen.getByText('1.5L / 2.0L')).toBeInTheDocument();
-    expect(screen.getByText('75% completed')).toBeInTheDocument();
-    expect(screen.getByText('75% of your daily hydration goal achieved.')).toBeInTheDocument();
+    // Goal Completion MUST NOT show 100% completed
+    expect(screen.queryByText('100% completed')).not.toBeInTheDocument();
+    // Must show empty state with "No data yet"
+    expect(screen.getAllByText('No data yet').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Complete your profile to get started.')).toBeInTheDocument();
+  });
+
+  it('Goal Completion calculates accurately from genuine available goals when profile exists', () => {
+    const profile = {
+      fullName: 'Sarah Connor',
+      email: 'sarah@example.com',
+      age: '30',
+      gender: 'Female',
+      height: '165',
+      weight: '60',
+      fitnessGoal: 'Stay fit',
+    };
+    localStorage.setItem('nv_user_profile', JSON.stringify(profile));
+    // Hydration complete (100%), but no diet plan yet (0%) -> average is 50%
+    localStorage.setItem('nv_water_consumed', '2000');
+    localStorage.setItem('nv_water_goal', '2000');
+
+    render(<DashboardOverview />);
+
+    // Overall completion is 50%, NOT 100%
+    expect(screen.queryByText('100% completed')).not.toBeInTheDocument();
+    expect(screen.getByText('50% completed')).toBeInTheDocument();
+    expect(screen.getByText('50% of your active daily targets achieved.')).toBeInTheDocument();
+  });
+
+  it('Goal Completion shows 100% when all genuine active goals are completed', () => {
+    const profile = {
+      fullName: 'Sarah Connor',
+      email: 'sarah@example.com',
+      age: '30',
+      gender: 'Female',
+      height: '165',
+      weight: '60',
+      fitnessGoal: 'Stay fit',
+    };
+    localStorage.setItem('nv_user_profile', JSON.stringify(profile));
+    localStorage.setItem('nv_diet_plan', 'Day 1\nBreakfast: Oats');
+    localStorage.setItem('nv_water_consumed', '2000');
+    localStorage.setItem('nv_water_goal', '2000');
+
+    render(<DashboardOverview />);
+
+    // Both diet plan (100%) and hydration (100%) are complete
+    expect(screen.getByText('100% completed')).toBeInTheDocument();
+    expect(screen.getByText('All active health and nutrition targets on track!')).toBeInTheDocument();
   });
 
   it('TEST 2 (continued): user with actual weight history displays real trend and entries', () => {

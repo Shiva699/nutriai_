@@ -236,17 +236,51 @@ export function DashboardOverview() {
     let compPct = 0;
     let compDetail = 'Complete your profile to get started.';
 
-    if (waterConsumedVal !== null) {
-      const waterPct = Math.min(100, Math.round((waterConsumedVal / waterGoalVal) * 100));
-      compPct = waterPct;
-      compText = `${waterPct}% completed`;
-      compDetail = waterPct >= 100
-        ? 'Daily hydration target completed!'
-        : `${waterPct}% of your daily hydration goal achieved.`;
-    } else if (weightVal !== null || userProfile !== null) {
-      compText = 'Profile active';
-      compPct = 50;
-      compDetail = 'Track daily water and meals to measure goal completion.';
+    const hasProfileGoal = Boolean(userProfile && (userProfile.fitnessGoal?.trim() || userProfile.weight || userProfile.height));
+    const hasDietGoal = Boolean(localStorage.getItem('nv_diet_goal') || localStorage.getItem('nv_diet_plan'));
+    const hasOverallGoal = hasProfileGoal || hasDietGoal;
+
+    if (!hasOverallGoal) {
+      compText = 'No data yet';
+      compPct = 0;
+      compDetail = 'Complete your profile to get started.';
+    } else {
+      const goals: number[] = [];
+
+      // Nutrition goal: active if diet plan generated
+      const rawDietPlan = localStorage.getItem('nv_diet_plan');
+      const hasMealPlan = Boolean(rawDietPlan && rawDietPlan.trim());
+      goals.push(hasMealPlan ? 100 : 0);
+
+      // Hydration goal: tracked if water was logged
+      if (waterConsumedVal !== null) {
+        const waterPct = Math.min(100, Math.round((waterConsumedVal / waterGoalVal) * 100));
+        goals.push(waterPct);
+      } else {
+        goals.push(0);
+      }
+
+      // Weight goal: included if user set a goal weight
+      const rawGoalWeight = localStorage.getItem('nv_goal_weight');
+      if (rawGoalWeight && !isNaN(Number(rawGoalWeight)) && Number(rawGoalWeight) > 0 && weightVal !== null) {
+        const targetW = Number(rawGoalWeight);
+        const diff = Math.abs(weightVal - targetW);
+        const weightPct = diff <= 0.5 ? 100 : Math.min(100, Math.max(0, Math.round((1 - diff / targetW) * 100)));
+        goals.push(weightPct);
+      }
+
+      const avg = Math.round(goals.reduce((sum, v) => sum + v, 0) / goals.length);
+      compPct = Math.min(100, Math.max(0, avg));
+      if (compPct > 0) {
+        compText = `${compPct}% completed`;
+        compDetail = compPct >= 100
+          ? 'All active health and nutrition targets on track!'
+          : `${compPct}% of your active daily targets achieved.`;
+      } else {
+        compText = 'Profile active';
+        compPct = 0;
+        compDetail = 'Track daily water and meals to measure goal completion.';
+      }
     }
 
     // 8. Weekly progress
