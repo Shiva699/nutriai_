@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useMemo, useState, useEffect, ReactNode } from 'react';
 import { Link, useInRouterContext } from 'react-router-dom';
-import { FiBarChart2, FiCheckCircle, FiClock, FiDroplet, FiHeart, FiPieChart, FiTrendingUp } from 'react-icons/fi';
+import { FiBarChart2, FiCheckCircle, FiClock, FiDroplet, FiHeart, FiPieChart, FiTrendingUp, FiTrash2 } from 'react-icons/fi';
 import { Header } from './Header';
 import { InsightCard } from './InsightCard';
 import { MealCard } from './MealCard';
@@ -1539,161 +1539,584 @@ export function BMICalculator() {
 
 export function WeightTracker() {
   const [weightHistory, setWeightHistory] = useState<{ date: string; weight: number }[]>(() => {
-    try {
-      const raw = localStorage.getItem('nv_weight_history');
-      return raw ? JSON.parse(raw) : [
-        { date: 'Jun 16', weight: 71.8 },
-        { date: 'Jun 18', weight: 72.0 },
-        { date: 'Jun 20', weight: 72.1 },
-        { date: 'Jun 22', weight: 72.4 },
-      ];
-    } catch {
-      return [
-        { date: 'Jun 16', weight: 71.8 },
-        { date: 'Jun 18', weight: 72.0 },
-        { date: 'Jun 20', weight: 72.1 },
-        { date: 'Jun 22', weight: 72.4 },
-      ];
-    }
+    return getValidWeightHistory();
   });
   const [entry, setEntry] = useState(() => localStorage.getItem('nv_current_weight_entry') || '');
-  const [goalWeight, setGoalWeight] = useState<number | undefined>(() => {
-    const s = localStorage.getItem('nv_goal_weight');
-    return s ? Number(s) : 68;
+  const [entryDate, setEntryDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [entryError, setEntryError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  const [goalWeight, setGoalWeight] = useState<number | null>(() => {
+    try {
+      const s = localStorage.getItem('nv_goal_weight');
+      if (s) {
+        const n = Number(s);
+        if (!isNaN(n) && isFinite(n) && n >= 20 && n <= 400) return n;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
   });
-  const [userHeight] = useState<number>(() => {
-    const s = localStorage.getItem('nv_user_height');
-    return s ? Number(s) : 170;
+  const [goalInput, setGoalInput] = useState<string>(() => {
+    try {
+      const s = localStorage.getItem('nv_goal_weight');
+      if (s) {
+        const n = Number(s);
+        if (!isNaN(n) && isFinite(n) && n >= 20 && n <= 400) return String(n);
+      }
+    } catch {
+      // ignore
+    }
+    return '';
   });
+  const [goalError, setGoalError] = useState<string | null>(null);
+
+  const [userHeight] = useState<number | null>(() => {
+    try {
+      const s = localStorage.getItem('nv_user_height');
+      if (s) {
+        const n = Number(s);
+        if (!isNaN(n) && isFinite(n) && n >= 50 && n <= 260) return n;
+      }
+      const rawProfile = localStorage.getItem('nv_user_profile');
+      if (rawProfile) {
+        const p = JSON.parse(rawProfile);
+        const pn = Number(p.height);
+        if (!isNaN(pn) && isFinite(pn) && pn >= 50 && pn <= 260) return pn;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+
   const [prediction, setPrediction] = useState<string | null>(null);
-
-  // Calculate weekly progress from actual weightHistory
-  const weeklyChangeNum = weightHistory.length >= 2 
-    ? weightHistory[0].weight - weightHistory[weightHistory.length - 1].weight
-    : 0;
-  const weeklyChange = weeklyChangeNum.toFixed(1);
-
-  // Calculate BMI from latest weight
-  const currentWeight = weightHistory.length > 0 ? weightHistory[0].weight : 72.4;
-  const currentBMI = (currentWeight / ((userHeight / 100) ** 2)).toFixed(1);
   const [predLoading, setPredLoading] = useState(false);
 
-  const handleAdd = () => {
-    if (!entry) return;
-    const updated = [{ date: 'Today', weight: Number(entry) }, ...weightHistory].slice(0, 7);
-    setWeightHistory(updated);
-    localStorage.setItem('nv_weight_history', JSON.stringify(updated));
-    localStorage.setItem('nv_current_weight', `${Number(entry)} kg`);
-    localStorage.setItem('nv_weight_detail', `${(Number(entry) - (weightHistory[0]?.weight ?? Number(entry))).toFixed(1)} kg change`);
-    const newBMI = (Number(entry) / ((userHeight / 100) ** 2)).toFixed(1);
-    localStorage.setItem('nv_current_bmi', newBMI);
-    setEntry('');
-    localStorage.removeItem('nv_current_weight_entry');
+  // Sync draft entry to storage
+  useEffect(() => {
+    if (entry) {
+      localStorage.setItem('nv_current_weight_entry', entry);
+    } else {
+      localStorage.removeItem('nv_current_weight_entry');
+    }
+  }, [entry]);
+
+  // Derived metrics
+  const latestWeight = weightHistory.length > 0 ? weightHistory[0].weight : null;
+  const weeklyChangeNum = weightHistory.length >= 2
+    ? Number((weightHistory[0].weight - weightHistory[weightHistory.length - 1].weight).toFixed(1))
+    : null;
+
+  const currentBMI = latestWeight !== null && userHeight !== null && userHeight > 0
+    ? (latestWeight / ((userHeight / 100) ** 2)).toFixed(1)
+    : null;
+
+  const formatEntryDate = (dateStr: string): string => {
+    if (!dateStr) return 'Today';
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      if (dateStr === today) {
+        return 'Today';
+      }
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
   };
 
-  // ensure localStorage kept in sync when history changes elsewhere
-  useEffect(() => {
-    localStorage.setItem('nv_weight_history', JSON.stringify(weightHistory));
-    if (weightHistory.length > 0) {
-      localStorage.setItem('nv_current_weight', `${weightHistory[0].weight} kg`);
+  const handleAdd = () => {
+    setEntryError(null);
+    setStatusMessage(null);
+    const trimmed = entry.trim();
+    if (!trimmed) {
+      setEntryError('Please enter a weight value.');
+      return;
     }
-  }, [weightHistory]);
+    const num = Number(trimmed);
+    if (isNaN(num) || !isFinite(num)) {
+      setEntryError('Weight must be a valid number.');
+      return;
+    }
+    if (num <= 0) {
+      setEntryError('Weight must be greater than 0 kg.');
+      return;
+    }
+    if (num < 20 || num > 400) {
+      setEntryError('Weight must be between 20 kg and 400 kg.');
+      return;
+    }
 
-  useEffect(() => { if (entry) localStorage.setItem('nv_current_weight_entry', entry); else localStorage.removeItem('nv_current_weight_entry'); }, [entry]);
-  useEffect(() => { if (goalWeight) localStorage.setItem('nv_goal_weight', String(goalWeight)); }, [goalWeight]);
-  useEffect(() => { localStorage.setItem('nv_user_height', String(userHeight)); }, [userHeight]);
+    const numWeight = Number(num.toFixed(1));
+    const formattedDate = formatEntryDate(entryDate);
+    const existingIndex = weightHistory.findIndex((h) => h.date === formattedDate);
+
+    let updated: { date: string; weight: number }[];
+    if (existingIndex >= 0) {
+      updated = [...weightHistory];
+      updated[existingIndex] = { date: formattedDate, weight: numWeight };
+      setStatusMessage(`Updated weight for ${formattedDate} to ${numWeight} kg.`);
+    } else {
+      updated = [{ date: formattedDate, weight: numWeight }, ...weightHistory].slice(0, 30);
+      setStatusMessage(`Recorded ${numWeight} kg for ${formattedDate}.`);
+    }
+
+    setWeightHistory(updated);
+    localStorage.setItem('nv_weight_history', JSON.stringify(updated));
+    localStorage.setItem('nv_current_weight', `${updated[0].weight.toFixed(1)} kg`);
+
+    if (updated.length >= 2) {
+      const diff = updated[0].weight - updated[1].weight;
+      localStorage.setItem('nv_weight_detail', `${diff >= 0 ? '+' : ''}${diff.toFixed(1)} kg change`);
+    } else {
+      localStorage.setItem('nv_weight_detail', 'Latest entry');
+    }
+
+    if (userHeight && userHeight > 0) {
+      const newBMI = (updated[0].weight / ((userHeight / 100) ** 2)).toFixed(1);
+      localStorage.setItem('nv_current_bmi', newBMI);
+    }
+
+    setEntry('');
+    localStorage.removeItem('nv_current_weight_entry');
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  const handleDelete = (indexToDelete: number) => {
+    setStatusMessage(null);
+    const target = weightHistory[indexToDelete];
+    const updated = weightHistory.filter((_, idx) => idx !== indexToDelete);
+    setWeightHistory(updated);
+    localStorage.setItem('nv_weight_history', JSON.stringify(updated));
+
+    if (updated.length > 0) {
+      localStorage.setItem('nv_current_weight', `${updated[0].weight.toFixed(1)} kg`);
+      if (updated.length >= 2) {
+        const diff = updated[0].weight - updated[1].weight;
+        localStorage.setItem('nv_weight_detail', `${diff >= 0 ? '+' : ''}${diff.toFixed(1)} kg change`);
+      } else {
+        localStorage.setItem('nv_weight_detail', 'Latest entry');
+      }
+      if (userHeight && userHeight > 0) {
+        const newBMI = (updated[0].weight / ((userHeight / 100) ** 2)).toFixed(1);
+        localStorage.setItem('nv_current_bmi', newBMI);
+      }
+    } else {
+      localStorage.removeItem('nv_current_weight');
+      localStorage.removeItem('nv_weight_detail');
+      localStorage.removeItem('nv_current_bmi');
+    }
+
+    setStatusMessage(target ? `Deleted entry for ${target.date}.` : 'Entry deleted.');
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  const handleSaveGoal = () => {
+    setGoalError(null);
+    setStatusMessage(null);
+    const trimmed = goalInput.trim();
+    if (!trimmed) {
+      setGoalError('Please enter a target weight.');
+      return;
+    }
+    const num = Number(trimmed);
+    if (isNaN(num) || !isFinite(num)) {
+      setGoalError('Target weight must be a valid number.');
+      return;
+    }
+    if (num < 20 || num > 400) {
+      setGoalError('Target weight must be between 20 kg and 400 kg.');
+      return;
+    }
+    const val = Number(num.toFixed(1));
+    setGoalWeight(val);
+    localStorage.setItem('nv_goal_weight', String(val));
+    setStatusMessage(`Target weight set to ${val} kg.`);
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  const handleClearGoal = () => {
+    setGoalWeight(null);
+    setGoalInput('');
+    setGoalError(null);
+    localStorage.removeItem('nv_goal_weight');
+    setStatusMessage('Target weight cleared.');
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  const handlePredict = async () => {
+    setGoalError(null);
+    const currentW = latestWeight ?? (entry ? Number(entry) : null);
+    if (!currentW || isNaN(currentW) || currentW < 20 || currentW > 400) {
+      setGoalError('Log or enter a valid current weight (20-400 kg) first.');
+      return;
+    }
+    if (!goalWeight) {
+      setGoalError('Set a target weight first to run an AI prediction.');
+      return;
+    }
+    setPredLoading(true);
+    setPrediction(null);
+    try {
+      const r = await predictWeightTimeline(currentW, goalWeight);
+      setPrediction(r);
+    } catch {
+      setPrediction('Prediction service temporarily unavailable.');
+    } finally {
+      setPredLoading(false);
+    }
+  };
+
+  // Chronological items for trend graph
+  const trendItems = [...weightHistory].reverse().slice(-7);
+  const minTrendWeight = trendItems.length > 0 ? Math.min(...trendItems.map((i) => i.weight)) : 0;
+  const maxTrendWeight = trendItems.length > 0 ? Math.max(...trendItems.map((i) => i.weight)) : 0;
+  const trendRange = maxTrendWeight - minTrendWeight || 1;
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[32px] border border-white/10 bg-slate-950/80 p-8 shadow-[0_30px_70px_-40px_rgba(5,12,31,0.9)] backdrop-blur-xl">
+      {/* Top Banner Card */}
+      <div className="rounded-[32px] border border-slate-200/80 bg-white/90 p-8 shadow-[0_30px_70px_-40px_rgba(5,12,31,0.06)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/80 dark:shadow-[0_30px_70px_-40px_rgba(5,12,31,0.9)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Weight Tracker</p>
-            <h1 className="mt-3 text-3xl font-semibold text-white">Log progress with confidence.</h1>
+            <p className="text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Weight Tracker</p>
+            <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">Log progress with confidence.</h1>
           </div>
-          <button onClick={handleAdd} className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400">
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
+          >
             Add current weight
           </button>
         </div>
 
+        {/* Status / Alert notifications */}
+        {statusMessage && (
+          <div role="status" className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
+            {statusMessage}
+          </div>
+        )}
+        {entryError && (
+          <div role="alert" className="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-700 dark:text-rose-300">
+            {entryError}
+          </div>
+        )}
+
         <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
+          {/* Left: Summary & History list */}
+          <div className="rounded-[32px] border border-slate-200/70 bg-slate-50/80 p-6 dark:border-white/10 dark:bg-white/5">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Weekly progress</p>
-                <p className="mt-3 text-3xl font-semibold text-white">{weeklyChangeNum >= 0 ? '+' : ''}{weeklyChange} kg</p>
-                <p className="mt-1 text-xs text-slate-400">Current BMI: {currentBMI}</p>
+                <p className="text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Weekly progress</p>
+                <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">
+                  {weeklyChangeNum !== null
+                    ? `${weeklyChangeNum >= 0 ? '+' : ''}${weeklyChangeNum.toFixed(1)} kg`
+                    : latestWeight !== null
+                    ? `${latestWeight.toFixed(1)} kg`
+                    : '--'}
+                </p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {weeklyChangeNum !== null
+                    ? weeklyChangeNum > 0
+                      ? 'Weekly gain'
+                      : weeklyChangeNum < 0
+                      ? 'Weekly loss'
+                      : 'No net change'
+                    : latestWeight !== null
+                    ? 'Single entry recorded (log 2+ to see trend)'
+                    : 'No entries logged yet'}
+                </p>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  Current BMI: {currentBMI ?? (userHeight ? '--' : '-- (Set height in Profile)')}
+                </p>
               </div>
-              <FiTrendingUp className="h-6 w-6 text-cyan-300" />
+              <FiTrendingUp className="h-6 w-6 text-cyan-500 dark:text-cyan-300" />
             </div>
-            <div className="mt-8 space-y-3">
-              {weightHistory.map((item) => (
-                <div key={item.date} className="flex items-center justify-between text-sm text-slate-300">
-                  <span>{item.date}</span>
-                  <span>{item.weight.toFixed(1)} kg</span>
+
+            <div className="mt-6 border-t border-slate-200/60 pt-4 dark:border-white/10">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Logged entries ({weightHistory.length})
+              </h2>
+
+              {weightHistory.length === 0 ? (
+                <div className="py-8 text-center text-slate-500 dark:text-slate-400">
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No weight history yet</p>
+                  <p className="mt-1 text-xs">Enter your current weight to start tracking your journey.</p>
                 </div>
-              ))}
+              ) : (
+                <div className="mt-3 space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {weightHistory.map((item, index) => (
+                    <div
+                      key={`${item.date}-${index}`}
+                      className="flex items-center justify-between rounded-2xl border border-slate-200/60 bg-white/80 px-4 py-2.5 text-sm dark:border-white/5 dark:bg-white/5"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-700 dark:text-slate-300">{item.date}</span>
+                        {index === 0 && (
+                          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                            Latest
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-semibold text-slate-900 dark:text-white">{item.weight.toFixed(1)} kg</span>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(index)}
+                          className="rounded-lg p-1 text-slate-400 hover:bg-rose-500/10 hover:text-rose-500 transition"
+                          aria-label={`Delete entry for ${item.date}`}
+                        >
+                          <FiTrash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="rounded-[32px] border border-white/10 bg-slate-950/80 p-6">
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Log weight</p>
-            <div className="mt-5 flex gap-3">
-              <input type="number" value={entry} placeholder="72.4" onChange={(event) => setEntry(event.target.value)} className="w-full rounded-3xl border border-white/10 bg-slate-950/90 px-4 py-3 text-white outline-none transition focus:border-cyan-400" />
-            </div>
-            <button onClick={handleAdd} className="mt-4 w-full rounded-3xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">
-              Save weight
-            </button>
-            <div className="mt-4">
-              <label className="block text-sm uppercase tracking-[0.3em] text-slate-400">Goal weight (kg)</label>
-              <div className="mt-2 flex gap-2">
-                <input type="number" value={goalWeight ?? ''} onChange={(e) => setGoalWeight(Number(e.target.value))} className="rounded-3xl border border-white/10 bg-slate-950/90 px-4 py-2 text-white" />
-                <button onClick={async () => { if (!goalWeight) return; setPredLoading(true); setPrediction(null); try { const r = await predictWeightTimeline(Number(weightHistory[0]?.weight ?? entry), goalWeight); setPrediction(r); } catch { setPrediction('Prediction failed'); } finally { setPredLoading(false); } }} className="rounded-3xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">{predLoading ? 'Predicting...' : 'AI Prediction'}</button>
+          {/* Right: Log Form & Target Weight */}
+          <div className="rounded-[32px] border border-slate-200/70 bg-slate-50/80 p-6 dark:border-white/10 dark:bg-slate-950/80">
+            <h2 className="text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Log weight</h2>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label htmlFor="weight-date" className="block text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                  Date
+                </label>
+                <input
+                  id="weight-date"
+                  type="date"
+                  value={entryDate}
+                  onChange={(e) => setEntryDate(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-cyan-500 dark:border-white/10 dark:bg-slate-950/90 dark:text-white dark:focus:border-cyan-400"
+                />
               </div>
-              {prediction && <div className="mt-3 rounded-2xl bg-white/5 p-3 text-sm text-slate-300"><div className="whitespace-pre-wrap break-words">{sanitizeAIText(prediction)}</div></div>}
+
+              <div>
+                <label htmlFor="weight-entry" className="block text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                  Current weight (kg)
+                </label>
+                <input
+                  id="weight-entry"
+                  type="number"
+                  step="0.1"
+                  min="20"
+                  max="400"
+                  value={entry}
+                  placeholder="e.g. 72.4"
+                  onChange={(e) => {
+                    setEntry(e.target.value);
+                    setEntryError(null);
+                  }}
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-cyan-500 dark:border-white/10 dark:bg-slate-950/90 dark:text-white dark:focus:border-cyan-400"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAdd}
+                className="w-full rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+              >
+                Save weight
+              </button>
+            </div>
+
+            {/* Target Weight & AI Prediction */}
+            <div className="mt-6 border-t border-slate-200/60 pt-4 dark:border-white/10">
+              <label htmlFor="goal-weight-input" className="block text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                Target weight (kg)
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <input
+                  id="goal-weight-input"
+                  type="number"
+                  step="0.1"
+                  min="20"
+                  max="400"
+                  value={goalInput}
+                  placeholder="e.g. 68.0"
+                  onChange={(e) => {
+                    setGoalInput(e.target.value);
+                    setGoalError(null);
+                  }}
+                  className="flex-1 min-w-[120px] rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 dark:border-white/10 dark:bg-slate-950/90 dark:text-white dark:focus:border-cyan-400"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveGoal}
+                  className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition"
+                >
+                  Set target
+                </button>
+                {goalWeight !== null && (
+                  <button
+                    type="button"
+                    onClick={handleClearGoal}
+                    className="rounded-2xl border border-slate-300 bg-white px-2.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-400 dark:hover:text-white transition"
+                    aria-label="Clear target weight"
+                  >
+                    Clear
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handlePredict}
+                  disabled={predLoading}
+                  className="rounded-2xl bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-emerald-400 transition disabled:opacity-50"
+                >
+                  {predLoading ? 'Predicting...' : 'AI Prediction'}
+                </button>
+              </div>
+
+              {goalError && (
+                <div role="alert" className="mt-2 text-xs text-rose-600 dark:text-rose-400">
+                  {goalError}
+                </div>
+              )}
+
+              {goalWeight !== null && !goalError && (
+                <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+                  Target configured: {goalWeight.toFixed(1)} kg
+                </p>
+              )}
+
+              {prediction && (
+                <div className="mt-3 rounded-2xl border border-slate-200/60 bg-white/70 p-3 text-xs text-slate-700 dark:border-white/5 dark:bg-white/5 dark:text-slate-300">
+                  <div className="whitespace-pre-wrap break-words">{sanitizeAIText(prediction)}</div>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
+      {/* Bottom Visual Trends */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
+        {/* Trend Progress Bars */}
+        <div className="rounded-[32px] border border-slate-200/80 bg-white/90 p-6 shadow-sm dark:border-white/10 dark:bg-white/5">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Monthly progress</p>
-            <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs uppercase text-emerald-300">Stable</span>
+            <h2 className="text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Weight Trend</h2>
+            {weeklyChangeNum !== null && (
+              <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs uppercase text-emerald-600 dark:text-emerald-300 font-medium">
+                {weeklyChangeNum > 0 ? 'Gaining' : weeklyChangeNum < 0 ? 'Losing' : 'Maintaining'}
+              </span>
+            )}
           </div>
-          <div className="mt-6 space-y-4">
-            {(weightHistory.length > 0 ? weightHistory.slice().reverse() : [{ date: 'Week 1', weight: 72.4 }]).slice(0, 5).map((item, index) => (
-              <div key={index} className="space-y-2">
-                <div className="flex items-center justify-between text-sm text-slate-400">
-                  <span>{item.date || `Week ${index + 1}`}</span>
-                  <span>{item.weight.toFixed(1)} kg</span>
-                </div>
-                <div className="h-2 rounded-full bg-white/10">
-                  <div className={`h-full rounded-full ${index % 2 === 0 ? 'bg-emerald-400' : 'bg-cyan-400'}`} style={{ width: `${Math.min(100, 60 + (item.weight / 80) * 50)}%` }} />
-                </div>
+
+          {weightHistory.length === 0 ? (
+            <div className="mt-8 py-8 text-center text-slate-500 dark:text-slate-400">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No trend data available</p>
+              <p className="mt-1 text-xs">Add 2 or more weight entries to visualize your progress over time.</p>
+            </div>
+          ) : weightHistory.length === 1 ? (
+            <div className="mt-6 space-y-3">
+              <div className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-400">
+                <span>{weightHistory[0].date}</span>
+                <span className="font-medium text-slate-900 dark:text-white">{weightHistory[0].weight.toFixed(1)} kg</span>
               </div>
-            ))}
-          </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                <div
+                  role="progressbar"
+                  aria-valuenow={weightHistory[0].weight}
+                  aria-valuemin={0}
+                  aria-valuemax={weightHistory[0].weight}
+                  aria-label={`Weight on ${weightHistory[0].date}: ${weightHistory[0].weight} kg`}
+                  className="h-full rounded-full bg-emerald-400"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Single entry recorded. Log future weights to view trend comparison.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-6 space-y-4">
+              {trendItems.map((item, index) => {
+                const pct = Math.round(25 + ((item.weight - minTrendWeight) / trendRange) * 70);
+                return (
+                  <div key={`${item.date}-${index}`} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600 dark:text-slate-400">{item.date}</span>
+                      <span className="font-medium text-slate-900 dark:text-white">{item.weight.toFixed(1)} kg</span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                      <div
+                        role="progressbar"
+                        aria-valuenow={item.weight}
+                        aria-valuemin={Math.floor(minTrendWeight)}
+                        aria-valuemax={Math.ceil(maxTrendWeight)}
+                        aria-label={`Weight on ${item.date}: ${item.weight.toFixed(1)} kg`}
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          index % 2 === 0 ? 'bg-emerald-400' : 'bg-cyan-400'
+                        }`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        <div className="rounded-[32px] border border-white/10 bg-slate-950/80 p-6">
-          <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Weekly progress</p>
-          <div className="mt-6 grid gap-3">
-            {(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const).map((day, index) => {
-              const dayIndex = Math.min(index, weightHistory.length - 1);
-              const dayWeight = dayIndex >= 0 && weightHistory.length > dayIndex ? weightHistory[dayIndex].weight : (71.5 + index * 0.12);
-              return (
-              <div key={day} className="flex items-center gap-3">
-                <span className="w-10 text-sm text-slate-400">{day}</span>
-                <div className="h-3 flex-1 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full rounded-full bg-emerald-400" style={{ width: `${Math.min(100, 50 + (dayWeight / 80) * 50)}%` }} />
-                </div>
-                <span className="w-12 text-right text-sm text-slate-300">{dayWeight.toFixed(1)}</span>
-              </div>
-              );
-            })}
-          </div>
+        {/* Recent Entries Breakdown */}
+        <div className="rounded-[32px] border border-slate-200/80 bg-white/90 p-6 shadow-sm dark:border-white/10 dark:bg-slate-950/80">
+          <h2 className="text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Recent logs breakdown</h2>
+
+          {weightHistory.length === 0 ? (
+            <div className="mt-8 py-8 text-center text-slate-500 dark:text-slate-400">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No recent logs</p>
+              <p className="mt-1 text-xs">Your recorded daily weights and relative changes will display here.</p>
+            </div>
+          ) : (
+            <div className="mt-6 space-y-3">
+              {weightHistory.slice(0, 7).map((item, index) => {
+                const prev = weightHistory[index + 1];
+                const diff = prev ? Number((item.weight - prev.weight).toFixed(1)) : null;
+
+                return (
+                  <div
+                    key={`${item.date}-${index}-breakdown`}
+                    className="flex items-center justify-between rounded-2xl border border-slate-200/60 bg-slate-50/80 p-3 text-sm dark:border-white/5 dark:bg-white/5"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium text-slate-700 dark:text-slate-300">{item.date}</span>
+                      {index === 0 && (
+                        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                          Latest
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {diff !== null && (
+                        <span
+                          className={`text-xs font-medium ${
+                            diff > 0
+                              ? 'text-rose-600 dark:text-rose-400'
+                              : diff < 0
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-slate-500 dark:text-slate-400'
+                          }`}
+                        >
+                          {diff >= 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1)} kg
+                        </span>
+                      )}
+                      <span className="font-semibold text-slate-900 dark:text-white">{item.weight.toFixed(1)} kg</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
