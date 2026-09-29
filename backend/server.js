@@ -66,7 +66,19 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// Body parser error handler for oversized payloads
+app.use((err, req, res, next) => {
+  if (err?.type === "entity.too.large" || err?.status === 413) {
+    return res.status(413).json({
+      success: false,
+      error: "Payload too large: The uploaded image exceeds the 10MB limit. Please upload a smaller image.",
+    });
+  }
+  next(err);
+});
 
 // Routes
 const chatRoute = require("./routes/chat");

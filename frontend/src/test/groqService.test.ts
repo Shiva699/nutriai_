@@ -79,6 +79,19 @@ describe('Groq Frontend Service Client', () => {
     expect(result).toBe('Error: HTTP error! status: 502');
   });
 
+  it('handles HTTP 413 Payload Too Large gracefully with user-friendly error', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: false,
+      status: 413,
+      json: async () => {
+        throw new Error('Non-JSON 413 page');
+      },
+    } as unknown as Response);
+
+    const result = await askNutritionCoach('Test oversized upload');
+    expect(result).toContain('Payload too large: The uploaded image is too large');
+  });
+
   it('analyzeFoodImage passes base64 image data in meta to backend', async () => {
     const { analyzeFoodImage } = await import('../services/groq');
     const mockReply = 'Detected: Grilled Salmon with Steamed Broccoli. Approx 420 kcal, 42g protein, 8g carbs, 22g fat.';

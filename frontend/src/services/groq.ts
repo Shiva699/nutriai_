@@ -37,7 +37,15 @@ async function postToAI(
     logApiResponse(API_BASE_URL, response, data);
 
     if (!response.ok) {
-      const serverError = data?.error || `HTTP error! status: ${response.status}`;
+      let serverError = data?.error;
+      if (!serverError) {
+        if (response.status === 413) {
+          serverError =
+            "Payload too large: The uploaded image is too large. Please select a smaller photo or compress it.";
+        } else {
+          serverError = `HTTP error! status: ${response.status}`;
+        }
+      }
       return {
         success: false,
         error: serverError,
