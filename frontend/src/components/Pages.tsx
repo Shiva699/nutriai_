@@ -86,28 +86,211 @@ const mealPlans = [
   },
 ];
 
+function getValidWeightHistory(): { date: string; weight: number }[] {
+  try {
+    const raw = localStorage.getItem('nv_weight_history');
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return [];
+    if (
+      parsed.length === 4 &&
+      parsed[0]?.date === 'Jun 16' && parsed[0]?.weight === 71.8 &&
+      parsed[3]?.date === 'Jun 22' && parsed[3]?.weight === 72.4
+    ) {
+      return [];
+    }
+    return parsed;
+  } catch {
+    return [];
+  }
+}
+
+function getValidUserProfile(): UserProfile | null {
+  try {
+    const raw = localStorage.getItem('nv_user_profile');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      return parsed as UserProfile;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function DashboardOverview() {
   const [aiHealthScore, setAiHealthScore] = useState<string | null>(null);
   const [dailyInsight, setDailyInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
 
-  // Persisted dashboard overview values
-  const [dailyCalories] = useState<string>(() => localStorage.getItem('nv_daily_calories') || '1,850 kcal');
-  const [currentBMI] = useState<string>(() => localStorage.getItem('nv_current_bmi') || '22.8');
-  const [currentWeight] = useState<string>(() => localStorage.getItem('nv_current_weight') || '72.4 kg');
-  const [waterIntake] = useState<string>(() => localStorage.getItem('nv_water_intake') || '1.9 L');
-  const [dailyCaloriesDetail] = useState<string>(() => localStorage.getItem('nv_daily_calories_detail') || '85% of goal');
-  const [weightDetail] = useState<string>(() => localStorage.getItem('nv_weight_detail') || '+0.3 kg this week');
-  const [waterDetail] = useState<string>(() => localStorage.getItem('nv_water_detail') || '95% goal');
+  const {
+    checkinText,
+    dailyCaloriesText,
+    dailyCaloriesDetail,
+    bmiText,
+    bmiDetail,
+    weightText,
+    weightDetail,
+    waterIntakeText,
+    waterIntakeDetail,
+    goalCompletionText,
+    goalCompletionPct,
+    goalCompletionDetail,
+    weeklyProgressText,
+    validHistory,
+    hydrationText,
+    hydrationPct,
+    hydrationDetail,
+  } = useMemo(() => {
+    // 1. Next Check-in
+    const storedCheckin = localStorage.getItem('nv_next_checkin');
+    const checkin = storedCheckin && storedCheckin !== 'Tomorrow at 7:30 AM' && storedCheckin.trim()
+      ? storedCheckin
+      : 'No scheduled check-in';
 
-  // sync to localStorage
-  useEffect(() => { localStorage.setItem('nv_daily_calories', dailyCalories); }, [dailyCalories]);
-  useEffect(() => { localStorage.setItem('nv_current_bmi', currentBMI); }, [currentBMI]);
-  useEffect(() => { localStorage.setItem('nv_current_weight', currentWeight); }, [currentWeight]);
-  useEffect(() => { localStorage.setItem('nv_water_intake', waterIntake); }, [waterIntake]);
-  useEffect(() => { localStorage.setItem('nv_daily_calories_detail', dailyCaloriesDetail); }, [dailyCaloriesDetail]);
-  useEffect(() => { localStorage.setItem('nv_weight_detail', weightDetail); }, [weightDetail]);
-  useEffect(() => { localStorage.setItem('nv_water_detail', waterDetail); }, [waterDetail]);
+    // 2. Profile
+    const userProfile = getValidUserProfile();
+
+    // 3. Weight & History
+    const history = getValidWeightHistory();
+    let weightVal: number | null = null;
+    let wText = '--';
+    let wDetail = 'No data yet';
+
+    if (history.length > 0 && typeof history[0]?.weight === 'number') {
+      weightVal = history[0].weight;
+      wText = `${weightVal.toFixed(1)} kg`;
+      if (history.length >= 2 && typeof history[history.length - 1]?.weight === 'number') {
+        const diff = weightVal - history[history.length - 1].weight;
+        wDetail = `${diff >= 0 ? '+' : ''}${diff.toFixed(1)} kg this week`;
+      } else {
+        wDetail = 'Latest entry';
+      }
+    } else if (userProfile?.weight && !isNaN(Number(userProfile.weight)) && Number(userProfile.weight) > 0) {
+      weightVal = Number(userProfile.weight);
+      wText = `${weightVal.toFixed(1)} kg`;
+      wDetail = 'From profile';
+    }
+
+    // 4. Height & BMI
+    let heightVal: number | null = null;
+    const rawHeight = localStorage.getItem('nv_user_height');
+    if (rawHeight && !isNaN(Number(rawHeight)) && Number(rawHeight) > 0) {
+      heightVal = Number(rawHeight);
+    } else if (userProfile?.height && !isNaN(Number(userProfile.height)) && Number(userProfile.height) > 0) {
+      heightVal = Number(userProfile.height);
+    }
+
+    let bText = '--';
+    let bDetail = 'No data yet';
+    if (weightVal !== null && heightVal !== null && heightVal > 0) {
+      const bmiCalc = Number((weightVal / ((heightVal / 100) ** 2)).toFixed(1));
+      bText = bmiCalc.toFixed(1);
+      if (bmiCalc < 18.5) bDetail = 'Underweight';
+      else if (bmiCalc < 25) bDetail = 'Healthy range';
+      else if (bmiCalc < 30) bDetail = 'Overweight';
+      else bDetail = 'Obese';
+    }
+
+    // 5. Daily calories
+    let calText = '--';
+    let calDetail = 'No data yet';
+    const rawDailyCal = localStorage.getItem('nv_daily_calories');
+    if (rawDailyCal && rawDailyCal !== '1,850 kcal' && rawDailyCal.trim()) {
+      calText = rawDailyCal;
+      const rawDetail = localStorage.getItem('nv_daily_calories_detail');
+      calDetail = rawDetail && rawDetail !== '85% of goal' ? rawDetail : 'Daily target';
+    } else if (userProfile && userProfile.age && userProfile.gender && weightVal && heightVal) {
+      const a = Number(userProfile.age);
+      const isFemale = userProfile.gender.toLowerCase() === 'female';
+      const bmr = isFemale
+        ? 447.6 + 9.2 * weightVal + 3.1 * heightVal - 4.3 * a
+        : 88.36 + 13.4 * weightVal + 4.8 * heightVal - 5.7 * a;
+      const maintenance = Math.round(bmr * 1.55);
+      calText = `${maintenance.toLocaleString()} kcal`;
+      calDetail = 'Daily target (maintenance)';
+    }
+
+    // 6. Water intake
+    let waterText = '--';
+    let waterDetail = 'No data yet';
+    let waterConsumedVal: number | null = null;
+    let waterGoalVal = 2000;
+
+    const rawWaterConsumed = localStorage.getItem('nv_water_consumed');
+    const rawWaterGoal = localStorage.getItem('nv_water_goal');
+    if (rawWaterGoal && !isNaN(Number(rawWaterGoal)) && Number(rawWaterGoal) > 0) {
+      waterGoalVal = Number(rawWaterGoal);
+    }
+
+    if (rawWaterConsumed !== null && !isNaN(Number(rawWaterConsumed))) {
+      waterConsumedVal = Number(rawWaterConsumed);
+      waterText = `${(waterConsumedVal / 1000).toFixed(1)} L`;
+      const pct = Math.round((waterConsumedVal / waterGoalVal) * 100);
+      waterDetail = `${pct}% of goal`;
+    }
+
+    // 7. Goal completion
+    let compText = 'No data yet';
+    let compPct = 0;
+    let compDetail = 'Complete your profile to get started.';
+
+    if (waterConsumedVal !== null) {
+      const waterPct = Math.min(100, Math.round((waterConsumedVal / waterGoalVal) * 100));
+      compPct = waterPct;
+      compText = `${waterPct}% completed`;
+      compDetail = waterPct >= 100
+        ? 'Daily hydration target completed!'
+        : `${waterPct}% of your daily hydration goal achieved.`;
+    } else if (weightVal !== null || userProfile !== null) {
+      compText = 'Profile active';
+      compPct = 50;
+      compDetail = 'Track daily water and meals to measure goal completion.';
+    }
+
+    // 8. Weekly progress
+    let wpText = '--';
+    if (history.length >= 2 && typeof history[0]?.weight === 'number' && typeof history[history.length - 1]?.weight === 'number') {
+      const diff = history[0].weight - history[history.length - 1].weight;
+      wpText = `${diff >= 0 ? '+' : ''}${diff.toFixed(1)} kg ${diff >= 0 ? 'gain' : 'loss'}`;
+    } else if (history.length === 1 && typeof history[0]?.weight === 'number') {
+      wpText = `${history[0].weight.toFixed(1)} kg`;
+    }
+
+    // 9. Hydration profile
+    let hydText = '--';
+    let hydPct = 0;
+    let hydDetail = 'No water intake logged today. Track your water in Water Tracker.';
+
+    if (waterConsumedVal !== null) {
+      hydText = `${(waterConsumedVal / 1000).toFixed(1)}L / ${(waterGoalVal / 1000).toFixed(1)}L`;
+      hydPct = Math.min(100, Math.round((waterConsumedVal / waterGoalVal) * 100));
+      hydDetail = hydPct >= 100
+        ? 'Daily hydration goal achieved! Great job staying hydrated.'
+        : 'Stay on track by adding a glass of water throughout the day.';
+    }
+
+    return {
+      checkinText: checkin,
+      dailyCaloriesText: calText,
+      dailyCaloriesDetail: calDetail,
+      bmiText: bText,
+      bmiDetail: bDetail,
+      weightText: wText,
+      weightDetail: wDetail,
+      waterIntakeText: waterText,
+      waterIntakeDetail: waterDetail,
+      goalCompletionText: compText,
+      goalCompletionPct: compPct,
+      goalCompletionDetail: compDetail,
+      weeklyProgressText: wpText,
+      validHistory: history,
+      hydrationText: hydText,
+      hydrationPct: hydPct,
+      hydrationDetail: hydDetail,
+    };
+  }, []);
 
   const loadInsights = async () => {
     setLoadingInsight(true);
@@ -133,7 +316,7 @@ export function DashboardOverview() {
           </div>
           <div className="rounded-3xl bg-white/5 px-5 py-4 text-sm text-slate-300 shadow-inner shadow-black/20">
             <p className="font-semibold text-white">Your next check-in</p>
-            <p className="mt-1 text-slate-400">Tomorrow at 7:30 AM</p>
+            <p className="mt-1 text-slate-400">{checkinText}</p>
           </div>
         </div>
       </div>
@@ -142,31 +325,31 @@ export function DashboardOverview() {
         {[
           {
             label: 'Daily calories',
-            value: dailyCalories,
+            value: dailyCaloriesText,
             accent: 'from-emerald-500 to-teal-400',
             icon: FiHeart,
             detail: dailyCaloriesDetail,
           },
           {
             label: 'Current BMI',
-            value: currentBMI,
+            value: bmiText,
             accent: 'from-cyan-400 to-blue-400',
             icon: FiBarChart2,
-            detail: 'Healthy range',
+            detail: bmiDetail,
           },
           {
             label: 'Weight',
-            value: currentWeight,
+            value: weightText,
             accent: 'from-amber-400 to-orange-400',
             icon: FiCheckCircle,
             detail: weightDetail,
           },
           {
             label: 'Water intake',
-            value: waterIntake,
+            value: waterIntakeText,
             accent: 'from-sky-400 to-cyan-400',
             icon: FiDroplet,
-            detail: waterDetail,
+            detail: waterIntakeDetail,
           },
         ].map((card) => (
           <div key={card.label} className="rounded-[32px] border border-white/10 bg-slate-950/80 p-6 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.8)] backdrop-blur-xl">
@@ -202,46 +385,59 @@ export function DashboardOverview() {
           <div className="flex items-center justify-between gap-2">
             <div>
               <p className="text-sm uppercase tracking-[0.3em] text-emerald-300/70">Goal completion</p>
-              <h2 className="mt-3 text-xl font-semibold text-white">84% completed</h2>
+              <h2 className="mt-3 text-xl font-semibold text-white">{goalCompletionText}</h2>
             </div>
             <div className="rounded-3xl bg-white/5 px-4 py-2 text-sm text-slate-300">Today</div>
           </div>
           <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
-            <div className="h-full w-[84%] rounded-full bg-gradient-to-r from-emerald-400 to-teal-400 shadow-[0_0_20px_rgba(16,185,129,0.35)]" />
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-400 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition-all duration-500"
+              style={{ width: `${goalCompletionPct}%` }}
+            />
           </div>
-          <p className="mt-4 text-sm text-slate-400">Your meal, hydration, and activity targets are aligned for a strong recovery day.</p>
+          <p className="mt-4 text-sm text-slate-400">{goalCompletionDetail}</p>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="rounded-[32px] border border-white/10 bg-slate-950/80 p-6 shadow-[0_20px_50px_-35px_rgba(0,0,0,0.75)] backdrop-blur-xl">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Weekly progress</p>
-              <h2 className="mt-3 text-xl font-semibold text-white">+1.6 kg gain</h2>
+              <h2 className="mt-3 text-xl font-semibold text-white">{weeklyProgressText}</h2>
             </div>
             <FiTrendingUp className="h-6 w-6 text-emerald-300" />
           </div>
-          <div className="mt-6 space-y-3">
-            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((day, index) => (
-              <div key={day} className="flex items-center justify-between text-sm text-slate-400">
-                <span>{day}</span>
-                <span>+{(index * 0.3 + 0.4).toFixed(1)} kg</span>
-              </div>
-            ))}
-          </div>
+          {validHistory.length > 0 ? (
+            <div className="mt-6 space-y-3">
+              {validHistory.slice(0, 5).map((item, index) => (
+                <div key={item.date || index} className="flex items-center justify-between text-sm text-slate-400">
+                  <span>{item.date || `Entry ${index + 1}`}</span>
+                  <span>{typeof item.weight === 'number' ? `${item.weight.toFixed(1)} kg` : item.weight}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-6 flex flex-col items-center justify-center py-6 text-center">
+              <p className="text-sm text-slate-400">No data yet</p>
+              <p className="mt-1 text-xs text-slate-500">Log entries in Weight Tracker to see weekly trends.</p>
+            </div>
+          )}
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="rounded-[32px] border border-white/10 bg-slate-950/80 p-6 shadow-[0_20px_50px_-35px_rgba(0,0,0,0.75)] backdrop-blur-xl">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Hydration profile</p>
-              <h2 className="mt-3 text-xl font-semibold text-white">1.9L / 2.0L</h2>
+              <h2 className="mt-3 text-xl font-semibold text-white">{hydrationText}</h2>
             </div>
             <FiDroplet className="h-6 w-6 text-cyan-300" />
           </div>
           <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10">
-            <div className="h-full w-[95%] rounded-full bg-gradient-to-r from-cyan-400 to-blue-400 shadow-[0_0_18px_rgba(56,189,248,0.35)]" />
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-400 shadow-[0_0_18px_rgba(56,189,248,0.35)] transition-all duration-500"
+              style={{ width: `${hydrationPct}%` }}
+            />
           </div>
-          <p className="mt-4 text-sm text-slate-400">Stay on track by adding a glass before your afternoon workout.</p>
+          <p className="mt-4 text-sm text-slate-400">{hydrationDetail}</p>
         </motion.div>
       </div>
     </div>
