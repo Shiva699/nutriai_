@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, ReactNode } from 'react';
+import { useEffect, useState, ReactNode } from 'react';
 import { BrowserRouter, Link, Route, Routes, Navigate } from 'react-router-dom';
 import { FiMoon, FiSun, FiMenu, FiMessageCircle } from 'react-icons/fi';
 import { Sidebar } from './components/Sidebar';
@@ -146,6 +146,10 @@ function App() {
                 <DietPlannerPage />
               </AppLayout>
             }
+          />
+          <Route
+            path="/diet-generator"
+            element={<Navigate to="/diet-planner" replace />}
           />
           <Route
             path="/ai-coach"
