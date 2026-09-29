@@ -993,4 +993,59 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
       expect(screen.queryByText('Tomorrow at 7:30 AM')).not.toBeInTheDocument();
     });
   });
+
+  describe('Dashboard Progress Bars - Accessibility & ARIA Semantics', () => {
+    it('Goal Completion progressbar renders with role="progressbar", accessible name, bounds, and initial 0 value', () => {
+      render(<DashboardOverview />);
+
+      const goalProgress = screen.getByRole('progressbar', { name: 'Goal completion progress' });
+      expect(goalProgress).toBeInTheDocument();
+      expect(goalProgress).toHaveAttribute('aria-valuemin', '0');
+      expect(goalProgress).toHaveAttribute('aria-valuemax', '100');
+      expect(goalProgress).toHaveAttribute('aria-valuenow', '0');
+    });
+
+    it('Goal Completion progressbar reflects genuine calculated completion in aria-valuenow', () => {
+      const profile = {
+        fullName: 'Alex Health',
+        fitnessGoal: 'Maintain weight',
+      };
+      localStorage.setItem('nv_user_profile', JSON.stringify(profile));
+      localStorage.setItem('nv_water_consumed', '2000');
+      localStorage.setItem('nv_water_goal', '2000');
+      localStorage.setItem('nv_water_date', 'Today');
+      localStorage.setItem('nv_goal_weight', '70');
+      localStorage.setItem('nv_weight_history', JSON.stringify([{ date: 'Today', weight: 60 }]));
+
+      render(<DashboardOverview />);
+
+      const goalProgress = screen.getByRole('progressbar', { name: 'Goal completion progress' });
+      expect(goalProgress).toBeInTheDocument();
+      // Hydration 100% + Weight 86% -> average 93%
+      expect(goalProgress).toHaveAttribute('aria-valuenow', '93');
+    });
+
+    it('Hydration Profile progressbar renders with role="progressbar", accessible name, bounds, and 0 in empty state', () => {
+      render(<DashboardOverview />);
+
+      const hydProgress = screen.getByRole('progressbar', { name: 'Hydration progress' });
+      expect(hydProgress).toBeInTheDocument();
+      expect(hydProgress).toHaveAttribute('aria-valuemin', '0');
+      expect(hydProgress).toHaveAttribute('aria-valuemax', '100');
+      expect(hydProgress).toHaveAttribute('aria-valuenow', '0');
+    });
+
+    it('Hydration Profile progressbar reflects genuine water intake percentage in aria-valuenow', () => {
+      localStorage.setItem('nv_water_consumed', '1000');
+      localStorage.setItem('nv_water_goal', '2000');
+      localStorage.setItem('nv_water_date', 'Today');
+
+      render(<DashboardOverview />);
+
+      const hydProgress = screen.getByRole('progressbar', { name: 'Hydration progress' });
+      expect(hydProgress).toBeInTheDocument();
+      expect(hydProgress).toHaveAttribute('aria-valuenow', '50');
+    });
+  });
 });
+

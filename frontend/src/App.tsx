@@ -28,7 +28,7 @@ interface AppLayoutProps {
   setTheme: (theme: 'dark' | 'light') => void;
 }
 
-function AppLayout({ children, sidebarOpen, setSidebarOpen, theme, setTheme }: AppLayoutProps) {
+export function AppLayout({ children, sidebarOpen, setSidebarOpen, theme, setTheme }: AppLayoutProps) {
   return (
     <>
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
@@ -60,8 +60,10 @@ function AppLayout({ children, sidebarOpen, setSidebarOpen, theme, setTheme }: A
 
             <div className="flex items-center gap-3">
               <button
+                type="button"
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                 className="inline-flex h-12 w-12 items-center justify-center rounded-3xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10"
+                aria-label="Toggle theme"
               >
                 {theme === 'dark' ? (
                   <FiSun className="h-5 w-5" />
@@ -70,8 +72,10 @@ function AppLayout({ children, sidebarOpen, setSidebarOpen, theme, setTheme }: A
                 )}
               </button>
               <button
+                type="button"
                 onClick={() => setSidebarOpen(true)}
                 className="inline-flex h-12 w-12 items-center justify-center rounded-3xl border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10"
+                aria-label="Open navigation menu"
               >
                 <FiMenu className="h-5 w-5" />
               </button>
@@ -87,6 +91,7 @@ function AppLayout({ children, sidebarOpen, setSidebarOpen, theme, setTheme }: A
       <Link
         to="/ai-coach"
         className="fixed bottom-6 right-6 z-50 inline-flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:scale-105 lg:hidden"
+        aria-label="Open AI Nutrition Coach"
       >
         <FiMessageCircle className="h-6 w-6" />
       </Link>

@@ -88,7 +88,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               <p className="text-[10px] uppercase tracking-[0.32em] text-emerald-300/70">Health Dashboard</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:bg-white/10">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:bg-white/10"
+            aria-label="Close navigation menu"
+          >
             <FiX className="h-5 w-5" />
           </button>
         </div>

@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { BMICalculator, WaterTracker, SavedPlans, DietPlannerPage } from '../components/Pages';
 import FoodAnalyzer from '../components/FoodAnalyzer';
+import { AppLayout } from '../App';
+import { Sidebar } from '../components/Sidebar';
 
 describe('Frontend React Components', () => {
   beforeEach(() => {
@@ -154,4 +157,46 @@ describe('Frontend React Components', () => {
       expect(submitBtn).toBeDisabled();
     });
   });
+
+  describe('Accessibility - Icon Buttons and ARIA Labels', () => {
+    it('renders theme toggle, mobile menu, and floating AI coach with descriptive accessible names', () => {
+      render(
+        <MemoryRouter>
+          <AppLayout
+            sidebarOpen={false}
+            setSidebarOpen={vi.fn()}
+            theme="dark"
+            setTheme={vi.fn()}
+          >
+            <div>Dashboard Main Content</div>
+          </AppLayout>
+        </MemoryRouter>
+      );
+
+      // Theme toggle button
+      const themeBtn = screen.getByRole('button', { name: 'Toggle theme' });
+      expect(themeBtn).toBeInTheDocument();
+
+      // Mobile navigation menu button
+      const menuBtn = screen.getByRole('button', { name: 'Open navigation menu' });
+      expect(menuBtn).toBeInTheDocument();
+
+      // Floating AI Coach button / link
+      const aiCoachBtn = screen.getByRole('link', { name: 'Open AI Nutrition Coach' });
+      expect(aiCoachBtn).toBeInTheDocument();
+      expect(aiCoachBtn).toHaveAttribute('href', '/ai-coach');
+    });
+
+    it('renders mobile close button with descriptive accessible name in Sidebar', () => {
+      render(
+        <MemoryRouter>
+          <Sidebar open={true} onClose={vi.fn()} />
+        </MemoryRouter>
+      );
+
+      const closeBtn = screen.getByRole('button', { name: 'Close navigation menu' });
+      expect(closeBtn).toBeInTheDocument();
+    });
+  });
 });
+

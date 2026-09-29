@@ -873,6 +873,11 @@ export function DashboardOverview() {
           </div>
           <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
             <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={goalCompletionPct}
+              aria-label="Goal completion progress"
               className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-400 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition-all duration-500"
               style={{ width: `${goalCompletionPct}%` }}
             />
@@ -921,6 +926,11 @@ export function DashboardOverview() {
           </div>
           <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10">
             <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={hydrationPct}
+              aria-label="Hydration progress"
               className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-400 shadow-[0_0_18px_rgba(56,189,248,0.35)] transition-all duration-500"
               style={{ width: `${hydrationPct}%` }}
             />
