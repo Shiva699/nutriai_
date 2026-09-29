@@ -734,4 +734,150 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
       expect(screen.getByText('Track daily water and meals to measure goal completion.')).toBeInTheDocument();
     });
   });
+
+  describe('Dashboard Next Check-In - State & Validation Suite', () => {
+    it('fresh user with no check-in shows "Your next check-in" heading and "No scheduled check-in"', () => {
+      render(<DashboardOverview />);
+
+      expect(screen.getByText('Your next check-in')).toBeInTheDocument();
+      expect(screen.getByText('No scheduled check-in')).toBeInTheDocument();
+      expect(screen.queryByText('Tomorrow at 7:30 AM')).not.toBeInTheDocument();
+    });
+
+    it('valid future check-in string is displayed correctly', () => {
+      const future = new Date(Date.now() + 86400000 * 2);
+      const futureStr = future.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+      localStorage.setItem('nv_next_checkin', futureStr);
+
+      render(<DashboardOverview />);
+
+      expect(screen.getByText('Your next check-in')).toBeInTheDocument();
+      expect(screen.getByText(futureStr)).toBeInTheDocument();
+      expect(screen.queryByText('No scheduled check-in')).not.toBeInTheDocument();
+    });
+
+    it('valid future check-in object with title is displayed correctly', () => {
+      const futureDate = new Date(Date.now() + 86400000 * 3).toISOString();
+      localStorage.setItem(
+        'nv_next_checkin',
+        JSON.stringify({ title: 'Nutritionist Follow-up', date: futureDate })
+      );
+
+      render(<DashboardOverview />);
+
+      expect(screen.getByText('Your next check-in')).toBeInTheDocument();
+      expect(screen.getByText('Nutritionist Follow-up')).toBeInTheDocument();
+      expect(screen.queryByText('No scheduled check-in')).not.toBeInTheDocument();
+    });
+
+    it('expired check-in in the past is NOT displayed and defaults to "No scheduled check-in"', () => {
+      localStorage.setItem('nv_next_checkin', '2020-01-01 10:00 AM');
+
+      const { unmount } = render(<DashboardOverview />);
+
+      expect(screen.getByText('No scheduled check-in')).toBeInTheDocument();
+      expect(screen.queryByText('2020-01-01 10:00 AM')).not.toBeInTheDocument();
+      unmount();
+
+      localStorage.setItem('nv_next_checkin', String(Date.now() - 86400000));
+      render(<DashboardOverview />);
+
+      expect(screen.getByText('No scheduled check-in')).toBeInTheDocument();
+    });
+
+    it('multiple future check-ins selects the nearest upcoming one', () => {
+      const now = Date.now();
+      const inFiveDays = new Date(now + 86400000 * 5);
+      const inOneDay = new Date(now + 86400000 * 1);
+      const inTenDays = new Date(now + 86400000 * 10);
+
+      const checkins = [
+        { title: 'Goal Review (Day 5)', date: inFiveDays.toISOString() },
+        { title: 'Morning Check-in (Day 1)', date: inOneDay.toISOString() },
+        { title: 'Bi-weekly Check-in (Day 10)', date: inTenDays.toISOString() },
+      ];
+
+      localStorage.setItem('nv_next_checkin', JSON.stringify(checkins));
+
+      render(<DashboardOverview />);
+
+      expect(screen.getByText('Morning Check-in (Day 1)')).toBeInTheDocument();
+      expect(screen.queryByText('Goal Review (Day 5)')).not.toBeInTheDocument();
+      expect(screen.queryByText('Bi-weekly Check-in (Day 10)')).not.toBeInTheDocument();
+    });
+
+    it('ignores expired check-ins in a list and selects the nearest future check-in', () => {
+      const now = Date.now();
+      const pastDate = new Date(now - 86400000 * 30);
+      const inTwoDays = new Date(now + 86400000 * 2);
+      const inSevenDays = new Date(now + 86400000 * 7);
+
+      const checkins = [
+        { title: 'Past Session', date: pastDate.toISOString() },
+        { title: 'Upcoming 2-Day Session', date: inTwoDays.toISOString() },
+        { title: 'Upcoming 7-Day Session', date: inSevenDays.toISOString() },
+      ];
+
+      localStorage.setItem('nv_next_checkin', JSON.stringify(checkins));
+
+      render(<DashboardOverview />);
+
+      expect(screen.getByText('Upcoming 2-Day Session')).toBeInTheDocument();
+      expect(screen.queryByText('Past Session')).not.toBeInTheDocument();
+      expect(screen.queryByText('Upcoming 7-Day Session')).not.toBeInTheDocument();
+    });
+
+    it('when all stored check-ins are in the past, shows "No scheduled check-in"', () => {
+      const now = Date.now();
+      const checkins = [
+        { title: 'Old 1', date: new Date(now - 86400000 * 10).toISOString() },
+        { title: 'Old 2', date: new Date(now - 86400000 * 5).toISOString() },
+      ];
+
+      localStorage.setItem('nv_next_checkin', JSON.stringify(checkins));
+
+      render(<DashboardOverview />);
+
+      expect(screen.getByText('No scheduled check-in')).toBeInTheDocument();
+      expect(screen.queryByText('Old 1')).not.toBeInTheDocument();
+      expect(screen.queryByText('Old 2')).not.toBeInTheDocument();
+    });
+
+    it('safely handles invalid, corrupted, or malformed check-in values without crashing', () => {
+      const invalidEntries = [
+        '{broken json',
+        '[{"invalid": true}]',
+        'not-a-valid-date',
+        'NaN',
+        '0',
+        '-500',
+        'null',
+        'undefined',
+        '',
+        '   ',
+      ];
+
+      for (const entry of invalidEntries) {
+        localStorage.setItem('nv_next_checkin', entry);
+        const { unmount } = render(<DashboardOverview />);
+        expect(screen.getByText('No scheduled check-in')).toBeInTheDocument();
+        unmount();
+      }
+    });
+
+    it('rejects stale hardcoded demo check-in "Tomorrow at 7:30 AM"', () => {
+      localStorage.setItem('nv_next_checkin', 'Tomorrow at 7:30 AM');
+
+      render(<DashboardOverview />);
+
+      expect(screen.getByText('No scheduled check-in')).toBeInTheDocument();
+      expect(screen.queryByText('Tomorrow at 7:30 AM')).not.toBeInTheDocument();
+    });
+  });
 });

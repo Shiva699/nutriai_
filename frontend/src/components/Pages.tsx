@@ -245,6 +245,212 @@ export function getValidHydrationData(): ValidHydrationData | null {
   }
 }
 
+export interface ParsedCheckin {
+  date: Date;
+  displayText: string;
+}
+
+export function formatCheckinDate(date: Date): string {
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function parseCheckinItem(item: unknown): ParsedCheckin | null {
+  if (item === null || item === undefined) return null;
+
+  if (typeof item === 'number') {
+    if (isNaN(item) || !isFinite(item) || item <= 0) return null;
+    const ms = item < 1e11 ? item * 1000 : item;
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) return null;
+    return {
+      date: d,
+      displayText: formatCheckinDate(d),
+    };
+  }
+
+  if (typeof item === 'object') {
+    const obj = item as Record<string, unknown>;
+    let d: Date | null = null;
+
+    const rawTs = obj.timestamp ?? obj.time;
+    if (typeof rawTs === 'number' && !isNaN(rawTs) && isFinite(rawTs) && rawTs > 0) {
+      const ms = rawTs < 1e11 ? rawTs * 1000 : rawTs;
+      const testD = new Date(ms);
+      if (!isNaN(testD.getTime())) d = testD;
+    }
+
+    if (!d) {
+      const dateVal = obj.date ?? obj.datetime ?? obj.scheduledAt ?? obj.checkinDate ?? obj.time;
+      if (typeof dateVal === 'string' && dateVal.trim()) {
+        const timeStr = typeof obj.time === 'string' && obj.date && obj.date !== obj.time ? obj.time.trim() : '';
+        const trimmedDate = dateVal.trim();
+        if (timeStr) {
+          const testD = new Date(`${trimmedDate} ${timeStr}`);
+          if (!isNaN(testD.getTime())) d = testD;
+        }
+        if (!d) {
+          if (/^\d{4}-\d{2}-\d{2}$/.test(trimmedDate)) {
+            const [y, m, day] = trimmedDate.split('-').map(Number);
+            d = new Date(y, m - 1, day, 23, 59, 59, 999);
+          } else {
+            const testD = new Date(trimmedDate);
+            if (!isNaN(testD.getTime())) d = testD;
+          }
+        }
+      }
+    }
+
+    if (!d || isNaN(d.getTime())) return null;
+
+    let text = '';
+    if (typeof obj.text === 'string' && obj.text.trim()) {
+      text = obj.text.trim();
+    } else if (typeof obj.label === 'string' && obj.label.trim()) {
+      text = obj.label.trim();
+    } else if (typeof obj.title === 'string' && obj.title.trim()) {
+      text = obj.title.trim();
+    } else if (typeof obj.date === 'string' && typeof obj.time === 'string' && obj.date.trim() && obj.time.trim()) {
+      text = `${obj.date.trim()} at ${obj.time.trim()}`;
+    } else if (typeof obj.date === 'string' && obj.date.trim()) {
+      text = obj.date.trim();
+    } else if (typeof obj.datetime === 'string' && obj.datetime.trim()) {
+      text = obj.datetime.trim();
+    } else {
+      text = formatCheckinDate(d);
+    }
+
+    if (text === 'Tomorrow at 7:30 AM') return null;
+
+    return { date: d, displayText: text };
+  }
+
+  if (typeof item === 'string') {
+    const trimmed = item.trim();
+    if (!trimmed || trimmed === 'Tomorrow at 7:30 AM' || trimmed === 'null' || trimmed === 'undefined') {
+      return null;
+    }
+
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return parseCheckinItem(parsed);
+      } catch {
+        return null;
+      }
+    }
+
+    if (/^\d+$/.test(trimmed)) {
+      const num = Number(trimmed);
+      if (!isNaN(num) && isFinite(num) && num > 0) {
+        const ms = num < 1e11 ? num * 1000 : num;
+        const d = new Date(ms);
+        if (!isNaN(d.getTime())) {
+          return { date: d, displayText: formatCheckinDate(d) };
+        }
+      }
+      return null;
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const [y, m, day] = trimmed.split('-').map(Number);
+      const d = new Date(y, m - 1, day, 23, 59, 59, 999);
+      if (!isNaN(d.getTime())) {
+        return { date: d, displayText: trimmed };
+      }
+    }
+
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime())) {
+      return { date: d, displayText: trimmed };
+    }
+  }
+
+  return null;
+}
+
+function extractValidCheckins(raw: unknown): ParsedCheckin[] {
+  if (raw === null || raw === undefined) return [];
+
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed === 'Tomorrow at 7:30 AM' || trimmed === 'null' || trimmed === 'undefined') {
+      return [];
+    }
+    if (trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return extractValidCheckins(parsed);
+        }
+      } catch {
+        return [];
+      }
+    } else if (trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        const single = parseCheckinItem(parsed);
+        return single ? [single] : [];
+      } catch {
+        return [];
+      }
+    }
+    const single = parseCheckinItem(trimmed);
+    return single ? [single] : [];
+  }
+
+  if (Array.isArray(raw)) {
+    const list: ParsedCheckin[] = [];
+    for (const el of raw) {
+      const item = parseCheckinItem(el);
+      if (item) list.push(item);
+    }
+    return list;
+  }
+
+  if (typeof raw === 'object' || typeof raw === 'number') {
+    const single = parseCheckinItem(raw);
+    return single ? [single] : [];
+  }
+
+  return [];
+}
+
+export function getValidNextCheckin(): string {
+  try {
+    const nowTime = Date.now();
+
+    const rawCheckin = localStorage.getItem('nv_next_checkin');
+    const rawCheckins = localStorage.getItem('nv_checkins');
+
+    const candidates: ParsedCheckin[] = [
+      ...extractValidCheckins(rawCheckin),
+      ...extractValidCheckins(rawCheckins),
+    ];
+
+    if (candidates.length === 0) {
+      return 'No scheduled check-in';
+    }
+
+    const futureCheckins = candidates.filter((c) => c.date.getTime() > nowTime);
+
+    if (futureCheckins.length === 0) {
+      return 'No scheduled check-in';
+    }
+
+    futureCheckins.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    return futureCheckins[0].displayText;
+  } catch {
+    return 'No scheduled check-in';
+  }
+}
+
 export function DashboardOverview() {
   const [aiHealthScore, setAiHealthScore] = useState<string | null>(null);
   const [dailyInsight, setDailyInsight] = useState<string | null>(null);
@@ -273,10 +479,7 @@ export function DashboardOverview() {
     healthPayload,
   } = useMemo(() => {
     // 1. Next Check-in
-    const storedCheckin = localStorage.getItem('nv_next_checkin');
-    const checkin = storedCheckin && storedCheckin !== 'Tomorrow at 7:30 AM' && storedCheckin.trim()
-      ? storedCheckin
-      : 'No scheduled check-in';
+    const checkin = getValidNextCheckin();
 
     // 2. Profile
     const userProfile = getValidUserProfile();
