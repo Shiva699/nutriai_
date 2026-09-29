@@ -135,6 +135,116 @@ function getValidUserProfile(): UserProfile | null {
   }
 }
 
+export function getTodayDateString(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function isHydrationDateToday(dateVal: unknown): boolean {
+  if (dateVal === null || dateVal === undefined) return false;
+  if (typeof dateVal === 'number' && !isNaN(dateVal) && dateVal > 0) {
+    const d = new Date(dateVal);
+    const now = new Date();
+    return (
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    );
+  }
+  if (typeof dateVal !== 'string') return false;
+  const s = dateVal.trim();
+  if (!s) return false;
+  if (s.toLowerCase() === 'today') return true;
+  if (s.toLowerCase() === 'yesterday') return false;
+
+  const today = getTodayDateString();
+  if (s === today) return true;
+
+  const parsed = new Date(s);
+  if (isNaN(parsed.getTime())) return false;
+  const now = new Date();
+  return (
+    parsed.getFullYear() === now.getFullYear() &&
+    parsed.getMonth() === now.getMonth() &&
+    parsed.getDate() === now.getDate()
+  );
+}
+
+export interface ValidHydrationData {
+  consumed: number;
+  goal: number;
+  pct: number;
+}
+
+export function getValidHydrationData(): ValidHydrationData | null {
+  try {
+    const rawGoal = localStorage.getItem('nv_water_goal');
+    if (rawGoal === null || rawGoal === undefined) return null;
+    const trimmedGoal = typeof rawGoal === 'string' ? rawGoal.trim() : '';
+    if (!trimmedGoal) return null;
+    const goalNum = Number(trimmedGoal);
+    if (isNaN(goalNum) || !isFinite(goalNum) || goalNum <= 0) {
+      return null;
+    }
+
+    const rawConsumed = localStorage.getItem('nv_water_consumed');
+    if (rawConsumed === null || rawConsumed === undefined) return null;
+    const trimmedConsumed = typeof rawConsumed === 'string' ? rawConsumed.trim() : '';
+    if (!trimmedConsumed) return null;
+
+    let consumedNum: number | null = null;
+    let entryDate: string | null = null;
+
+    if (trimmedConsumed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmedConsumed);
+        if (parsed && typeof parsed === 'object') {
+          const val = parsed.consumed ?? parsed.amount ?? parsed.value;
+          const n = typeof val === 'number' ? val : Number(val);
+          if (!isNaN(n) && isFinite(n) && n > 0) {
+            consumedNum = n;
+          }
+          if (typeof parsed.date === 'string') {
+            entryDate = parsed.date;
+          }
+        }
+      } catch {
+        return null;
+      }
+    } else {
+      const n = Number(trimmedConsumed);
+      if (!isNaN(n) && isFinite(n) && n > 0) {
+        consumedNum = n;
+      }
+    }
+
+    if (consumedNum === null || consumedNum <= 0) {
+      return null;
+    }
+
+    if (!entryDate) {
+      entryDate = localStorage.getItem('nv_water_date');
+    }
+
+    if (!isHydrationDateToday(entryDate)) {
+      return null;
+    }
+
+    const pct = Math.min(100, Math.max(0, Math.round((consumedNum / goalNum) * 100)));
+
+    return {
+      consumed: consumedNum,
+      goal: goalNum,
+      pct,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function DashboardOverview() {
   const [aiHealthScore, setAiHealthScore] = useState<string | null>(null);
   const [dailyInsight, setDailyInsight] = useState<string | null>(null);
@@ -232,22 +342,17 @@ export function DashboardOverview() {
     }
 
     // 6. Water intake
+    const hydrationData = getValidHydrationData();
     let waterText = '--';
     let waterDetail = 'No data yet';
     let waterConsumedVal: number | null = null;
-    let waterGoalVal = 2000;
+    let waterGoalVal: number | null = null;
 
-    const rawWaterConsumed = localStorage.getItem('nv_water_consumed');
-    const rawWaterGoal = localStorage.getItem('nv_water_goal');
-    if (rawWaterGoal && !isNaN(Number(rawWaterGoal)) && Number(rawWaterGoal) > 0) {
-      waterGoalVal = Number(rawWaterGoal);
-    }
-
-    if (rawWaterConsumed !== null && !isNaN(Number(rawWaterConsumed))) {
-      waterConsumedVal = Number(rawWaterConsumed);
+    if (hydrationData !== null) {
+      waterConsumedVal = hydrationData.consumed;
+      waterGoalVal = hydrationData.goal;
       waterText = `${(waterConsumedVal / 1000).toFixed(1)} L`;
-      const pct = Math.round((waterConsumedVal / waterGoalVal) * 100);
-      waterDetail = `${pct}% of goal`;
+      waterDetail = `${hydrationData.pct}% of goal`;
     }
 
     // 7. Goal completion
@@ -272,7 +377,7 @@ export function DashboardOverview() {
       goals.push(hasMealPlan ? 100 : 0);
 
       // Hydration goal: tracked if water was logged
-      if (waterConsumedVal !== null) {
+      if (waterConsumedVal !== null && waterGoalVal !== null && waterGoalVal > 0) {
         const waterPct = Math.min(100, Math.round((waterConsumedVal / waterGoalVal) * 100));
         goals.push(waterPct);
       } else {
@@ -325,9 +430,9 @@ export function DashboardOverview() {
     let hydPct = 0;
     let hydDetail = 'No water intake logged today. Track your water in Water Tracker.';
 
-    if (waterConsumedVal !== null) {
+    if (hydrationData !== null && waterConsumedVal !== null && waterGoalVal !== null && waterGoalVal > 0) {
       hydText = `${(waterConsumedVal / 1000).toFixed(1)}L / ${(waterGoalVal / 1000).toFixed(1)}L`;
-      hydPct = Math.min(100, Math.round((waterConsumedVal / waterGoalVal) * 100));
+      hydPct = hydrationData.pct;
       hydDetail = hydPct >= 100
         ? 'Daily hydration goal achieved! Great job staying hydrated.'
         : 'Stay on track by adding a glass of water throughout the day.';
@@ -1336,38 +1441,55 @@ export function CalorieCalculator() {
 export function WaterTracker() {
   const [goal] = useState<number>(() => {
     const s = localStorage.getItem('nv_water_goal');
-    return s ? Number(s) : 2000;
+    return s && !isNaN(Number(s)) && Number(s) > 0 ? Number(s) : 2000;
   });
   const [consumed, setConsumed] = useState<number>(() => {
+    const date = localStorage.getItem('nv_water_date');
+    if (date && !isHydrationDateToday(date)) {
+      return 0;
+    }
     const s = localStorage.getItem('nv_water_consumed');
-    return s ? Number(s) : 0;
+    return s && !isNaN(Number(s)) && Number(s) > 0 ? Number(s) : 0;
   });
-  const [history, setHistory] = useState<{ label: string; amount: number }[]>(() => {
+  const [history, setHistory] = useState<{ label: string; amount: number; date?: string }[]>(() => {
     try {
       const raw = localStorage.getItem('nv_water_history');
-      return raw ? JSON.parse(raw) : [];
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((item) => {
+        if (!item || typeof item !== 'object') return false;
+        if (item.date && !isHydrationDateToday(item.date)) return false;
+        return true;
+      });
     } catch {
       return [];
     }
   });
 
-  const progress = Math.min(100, Math.round((consumed / goal) * 100));
+  const progress = goal > 0 ? Math.min(100, Math.round((consumed / goal) * 100)) : 0;
 
   const addGlass = () => {
+    const today = getTodayDateString();
     const nextConsumed = Math.min(goal, consumed + 250);
     setConsumed(nextConsumed);
-    const nextHistory = [{ label: 'Added', amount: 250 }, ...history].slice(0, 6);
+    const nextHistory = [{ label: 'Added', amount: 250, date: today }, ...history].slice(0, 6);
     setHistory(nextHistory);
     localStorage.setItem('nv_water_consumed', String(nextConsumed));
+    localStorage.setItem('nv_water_goal', String(goal));
+    localStorage.setItem('nv_water_date', today);
     localStorage.setItem('nv_water_history', JSON.stringify(nextHistory));
     localStorage.setItem('nv_water_intake', `${(nextConsumed/1000).toFixed(1)} L`);
     localStorage.setItem('nv_water_detail', `${Math.round((nextConsumed/goal)*100)}% goal`);
   };
 
   const resetIntake = () => {
+    const today = getTodayDateString();
     setConsumed(0);
     setHistory([]);
     localStorage.setItem('nv_water_consumed', '0');
+    localStorage.setItem('nv_water_goal', String(goal));
+    localStorage.setItem('nv_water_date', today);
     localStorage.setItem('nv_water_history', JSON.stringify([]));
     localStorage.setItem('nv_water_intake', '0.0 L');
     localStorage.setItem('nv_water_detail', '0% goal');

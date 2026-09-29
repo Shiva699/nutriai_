@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { DashboardOverview } from '../components/Pages';
+import { DashboardOverview, WaterTracker, getTodayDateString } from '../components/Pages';
 import * as groqService from '../services/groq';
 
 describe('DashboardOverview Component - Clean Health Data Suite', () => {
@@ -61,6 +61,7 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
     // 100% hydration logged, but NO profile or overall goals exist
     localStorage.setItem('nv_water_consumed', '2000');
     localStorage.setItem('nv_water_goal', '2000');
+    localStorage.setItem('nv_water_date', 'Today');
 
     render(<DashboardOverview />);
 
@@ -91,6 +92,7 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
     // Hydration complete (100%), but no diet plan yet (0%) -> average is 50%
     localStorage.setItem('nv_water_consumed', '2000');
     localStorage.setItem('nv_water_goal', '2000');
+    localStorage.setItem('nv_water_date', 'Today');
 
     render(<DashboardOverview />);
 
@@ -114,6 +116,7 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
     localStorage.setItem('nv_diet_plan', 'Day 1\nBreakfast: Oats');
     localStorage.setItem('nv_water_consumed', '2000');
     localStorage.setItem('nv_water_goal', '2000');
+    localStorage.setItem('nv_water_date', 'Today');
 
     render(<DashboardOverview />);
 
@@ -373,6 +376,156 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
       expect(screen.queryByText('+2.6 kg gain')).not.toBeInTheDocument();
       expect(screen.queryByText('Jun 16')).not.toBeInTheDocument();
       expect(screen.queryByText('Jun 22')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Dashboard Hydration Profile - Daily Metric & Validation Suite', () => {
+    it('shows clean no-data state when no water intake is recorded for today', () => {
+      render(<DashboardOverview />);
+
+      expect(screen.getByText('Hydration profile')).toBeInTheDocument();
+      expect(screen.getByText('No water intake logged today. Track your water in Water Tracker.')).toBeInTheDocument();
+      // Top water card also shows empty state
+      expect(screen.getByText('Water intake')).toBeInTheDocument();
+      expect(screen.getAllByText('--').length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('treats yesterday water data as no intake today', () => {
+      localStorage.setItem('nv_water_consumed', '2000');
+      localStorage.setItem('nv_water_goal', '2000');
+      localStorage.setItem('nv_water_date', '2026-09-29');
+
+      render(<DashboardOverview />);
+
+      // Must NOT display yesterday's 2000ml or 100%
+      expect(screen.queryByText('2.0L / 2.0L')).not.toBeInTheDocument();
+      expect(screen.queryByText('2.0 L')).not.toBeInTheDocument();
+      expect(screen.queryByText('100% of goal')).not.toBeInTheDocument();
+
+      // Must show no-data state for today
+      expect(screen.getByText('No water intake logged today. Track your water in Water Tracker.')).toBeInTheDocument();
+    });
+
+    it('treats explicitly labeled "yesterday" water data as no intake today', () => {
+      localStorage.setItem('nv_water_consumed', '1500');
+      localStorage.setItem('nv_water_goal', '2000');
+      localStorage.setItem('nv_water_date', 'yesterday');
+
+      render(<DashboardOverview />);
+
+      expect(screen.queryByText('1.5L / 2.0L')).not.toBeInTheDocument();
+      expect(screen.getByText('No water intake logged today. Track your water in Water Tracker.')).toBeInTheDocument();
+    });
+
+    it('displays today actual consumed amount, goal, and calculated percentage', () => {
+      const today = getTodayDateString();
+      localStorage.setItem('nv_water_consumed', '1500');
+      localStorage.setItem('nv_water_goal', '2000');
+      localStorage.setItem('nv_water_date', today);
+
+      render(<DashboardOverview />);
+
+      // Both summary card and hydration profile card reflect today's numbers
+      expect(screen.getByText('1.5 L')).toBeInTheDocument();
+      expect(screen.getByText('75% of goal')).toBeInTheDocument();
+      expect(screen.getByText('1.5L / 2.0L')).toBeInTheDocument();
+      expect(screen.getByText('Stay on track by adding a glass of water throughout the day.')).toBeInTheDocument();
+    });
+
+    it('correctly calculates 100% and displays achievement message when goal is met', () => {
+      localStorage.setItem('nv_water_consumed', '2500');
+      localStorage.setItem('nv_water_goal', '2500');
+      localStorage.setItem('nv_water_date', 'Today');
+
+      render(<DashboardOverview />);
+
+      expect(screen.getByText('2.5 L')).toBeInTheDocument();
+      expect(screen.getByText('100% of goal')).toBeInTheDocument();
+      expect(screen.getByText('2.5L / 2.5L')).toBeInTheDocument();
+      expect(screen.getByText('Daily hydration goal achieved! Great job staying hydrated.')).toBeInTheDocument();
+    });
+
+    it('caps progress bar percentage at 100% when consumed exceeds goal', () => {
+      localStorage.setItem('nv_water_consumed', '3000');
+      localStorage.setItem('nv_water_goal', '2000');
+      localStorage.setItem('nv_water_date', 'Today');
+
+      render(<DashboardOverview />);
+
+      expect(screen.getByText('3.0L / 2.0L')).toBeInTheDocument();
+      expect(screen.getByText('Daily hydration goal achieved! Great job staying hydrated.')).toBeInTheDocument();
+    });
+
+    it('safely rejects 0, negative, NaN, and missing goals into a safe no-data state without inventing fake goals', () => {
+      // Goal is 0
+      localStorage.setItem('nv_water_consumed', '1500');
+      localStorage.setItem('nv_water_goal', '0');
+      localStorage.setItem('nv_water_date', 'Today');
+
+      const { unmount } = render(<DashboardOverview />);
+      expect(screen.queryByText('1.5L / 0.0L')).not.toBeInTheDocument();
+      expect(screen.queryByText('1.5L / 2.0L')).not.toBeInTheDocument();
+      expect(screen.getByText('No water intake logged today. Track your water in Water Tracker.')).toBeInTheDocument();
+      unmount();
+
+      // Negative goal
+      localStorage.setItem('nv_water_goal', '-2000');
+      const { unmount: unmount2 } = render(<DashboardOverview />);
+      expect(screen.queryByText('1.5L / 2.0L')).not.toBeInTheDocument();
+      expect(screen.getByText('No water intake logged today. Track your water in Water Tracker.')).toBeInTheDocument();
+      unmount2();
+
+      // Malformed string goal
+      localStorage.setItem('nv_water_goal', 'invalid-goal');
+      const { unmount: unmount3 } = render(<DashboardOverview />);
+      expect(screen.queryByText('1.5L / 2.0L')).not.toBeInTheDocument();
+      expect(screen.getByText('No water intake logged today. Track your water in Water Tracker.')).toBeInTheDocument();
+      unmount3();
+
+      // Missing goal
+      localStorage.removeItem('nv_water_goal');
+      render(<DashboardOverview />);
+      expect(screen.queryByText('1.5L / 2.0L')).not.toBeInTheDocument();
+      expect(screen.getByText('No water intake logged today. Track your water in Water Tracker.')).toBeInTheDocument();
+    });
+
+    it('safely handles corrupted/malformed consumed values without crashing', () => {
+      localStorage.setItem('nv_water_consumed', '{malformed json');
+      localStorage.setItem('nv_water_goal', '2000');
+
+      expect(() => render(<DashboardOverview />)).not.toThrow();
+      expect(screen.getByText('No water intake logged today. Track your water in Water Tracker.')).toBeInTheDocument();
+    });
+
+    it('keeps WaterTracker functionality and shared data synchronization intact', () => {
+      const { unmount: unmountTracker1 } = render(<WaterTracker />);
+
+      const addBtn = screen.getByText('Add 250ml');
+      fireEvent.click(addBtn);
+
+      expect(localStorage.getItem('nv_water_consumed')).toBe('250');
+      expect(localStorage.getItem('nv_water_date')).toBe(getTodayDateString());
+      expect(localStorage.getItem('nv_water_goal')).toBe('2000');
+      unmountTracker1();
+
+      // Now render Dashboard: must reflect the 250ml logged today
+      const { unmount: unmountDashboard } = render(<DashboardOverview />);
+      expect(screen.getByText('0.3L / 2.0L')).toBeInTheDocument();
+      expect(screen.getByText('0.3 L')).toBeInTheDocument();
+      expect(screen.getByText('13% of goal')).toBeInTheDocument();
+      unmountDashboard();
+
+      // Reset in WaterTracker
+      const { unmount: unmountTracker2 } = render(<WaterTracker />);
+      const resetBtn = screen.getByText('Reset');
+      fireEvent.click(resetBtn);
+
+      expect(localStorage.getItem('nv_water_consumed')).toBe('0');
+      unmountTracker2();
+
+      // Dashboard now returns to clean no-data state
+      render(<DashboardOverview />);
+      expect(screen.getByText('No water intake logged today. Track your water in Water Tracker.')).toBeInTheDocument();
     });
   });
 });
