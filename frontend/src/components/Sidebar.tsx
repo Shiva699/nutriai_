@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { FiBarChart2, FiChevronRight, FiCpu, FiDroplet, FiHeart, FiPieChart, FiSettings, FiTrendingUp, FiX, FiClock } from 'react-icons/fi';
 
 interface SidebarProps {
@@ -26,6 +26,18 @@ const menu = [
 export function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <>
+      {/* Mobile backdrop */}
+      {open && (
+        <div
+          data-testid="sidebar-backdrop"
+          role="presentation"
+          aria-hidden="true"
+          onClick={onClose}
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+        />
+      )}
+
+      {/* Desktop sidebar */}
       <aside className="hidden lg:flex fixed left-0 top-0 h-full w-[280px] border-r border-white/10 bg-slate-950/90 backdrop-blur-xl z-50">
         <div className="flex h-full flex-col justify-between px-6 py-8">
           <div>
@@ -62,22 +74,30 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           </div>
 
           <div className="space-y-4">
-            <button className="w-full rounded-[26px] bg-gradient-to-r from-emerald-400 to-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition hover:brightness-110">
-              Upgrade to Pro
-            </button>
-            <div className="flex items-center justify-between rounded-[26px] border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-400">
-              <div className="text-slate-300">Help</div>
-              <FiChevronRight className="h-4 w-4" />
+            <div className="rounded-[22px] border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-center">
+              <p className="text-xs font-semibold text-emerald-300">NutriVision Free Tier</p>
+              <p className="mt-0.5 text-[11px] text-slate-400">All features unlocked locally</p>
             </div>
-            <div className="flex items-center justify-between rounded-[26px] border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-400">
-              <div className="text-slate-300">Sign out</div>
-              <FiChevronRight className="h-4 w-4" />
-            </div>
+            <Link
+              to="/ai-coach"
+              className="flex items-center justify-between rounded-[26px] border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+            >
+              <span>Help & Support</span>
+              <FiChevronRight className="h-4 w-4 text-slate-400" />
+            </Link>
+            <Link
+              to="/profile-settings"
+              className="flex items-center justify-between rounded-[26px] border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+            >
+              <span>Account Settings</span>
+              <FiChevronRight className="h-4 w-4 text-slate-400" />
+            </Link>
           </div>
         </div>
       </aside>
 
-      <aside className={`fixed inset-y-0 left-0 z-50 w-[280px] border-r border-white/10 bg-slate-950/95 p-6 backdrop-blur-xl transition-transform duration-300 lg:hidden ${open ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* Mobile drawer */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-[280px] border-r border-white/10 bg-slate-950/95 p-6 backdrop-blur-xl transition-transform duration-300 lg:hidden overflow-y-auto ${open ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-400 to-cyan-500 text-slate-950 shadow-lg shadow-emerald-500/20">

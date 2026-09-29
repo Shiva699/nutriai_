@@ -198,5 +198,93 @@ describe('Frontend React Components', () => {
       expect(closeBtn).toBeInTheDocument();
     });
   });
+
+  describe('Sidebar Mobile UX and Action Semantics', () => {
+    it('renders mobile backdrop when open and triggers onClose on click', () => {
+      const handleClose = vi.fn();
+      const { rerender } = render(
+        <MemoryRouter>
+          <Sidebar open={true} onClose={handleClose} />
+        </MemoryRouter>
+      );
+
+      const backdrop = screen.getByTestId('sidebar-backdrop');
+      expect(backdrop).toBeInTheDocument();
+      expect(backdrop).toHaveAttribute('role', 'presentation');
+      expect(backdrop).toHaveAttribute('aria-hidden', 'true');
+
+      fireEvent.click(backdrop);
+      expect(handleClose).toHaveBeenCalledTimes(1);
+
+      // Verify backdrop does not render when closed
+      rerender(
+        <MemoryRouter>
+          <Sidebar open={false} onClose={handleClose} />
+        </MemoryRouter>
+      );
+      expect(screen.queryByTestId('sidebar-backdrop')).not.toBeInTheDocument();
+    });
+
+    it('triggers onClose when clicking the mobile close button', () => {
+      const handleClose = vi.fn();
+      render(
+        <MemoryRouter>
+          <Sidebar open={true} onClose={handleClose} />
+        </MemoryRouter>
+      );
+
+      const closeBtn = screen.getByRole('button', { name: 'Close navigation menu' });
+      fireEvent.click(closeBtn);
+      expect(handleClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('displays informational Free Tier state without deceptive upgrade buttons', () => {
+      render(
+        <MemoryRouter>
+          <Sidebar open={false} onClose={vi.fn()} />
+        </MemoryRouter>
+      );
+
+      expect(screen.queryByRole('button', { name: /Upgrade to Pro/i })).not.toBeInTheDocument();
+      expect(screen.getByText('NutriVision Free Tier')).toBeInTheDocument();
+      expect(screen.getByText('All features unlocked locally')).toBeInTheDocument();
+    });
+
+    it('routes Help & Support to the AI Nutrition Coach (/ai-coach)', () => {
+      render(
+        <MemoryRouter>
+          <Sidebar open={false} onClose={vi.fn()} />
+        </MemoryRouter>
+      );
+
+      const helpLink = screen.getByRole('link', { name: /Help & Support/i });
+      expect(helpLink).toBeInTheDocument();
+      expect(helpLink).toHaveAttribute('href', '/ai-coach');
+    });
+
+    it('routes Account Settings to /profile-settings and preserves stored user health data', () => {
+      localStorage.setItem('nv_user_profile', JSON.stringify({ name: 'Alex', age: 30 }));
+      localStorage.setItem('nv_water_consumed', '1500');
+
+      render(
+        <MemoryRouter>
+          <Sidebar open={false} onClose={vi.fn()} />
+        </MemoryRouter>
+      );
+
+      // Dead "Sign out" must be gone
+      expect(screen.queryByText('Sign out')).not.toBeInTheDocument();
+
+      // Account settings link must exist pointing to /profile-settings
+      const accountLink = screen.getByRole('link', { name: /Account Settings/i });
+      expect(accountLink).toBeInTheDocument();
+      expect(accountLink).toHaveAttribute('href', '/profile-settings');
+
+      // Interacting with the link should not clear user data
+      fireEvent.click(accountLink);
+      expect(localStorage.getItem('nv_user_profile')).toBe(JSON.stringify({ name: 'Alex', age: 30 }));
+      expect(localStorage.getItem('nv_water_consumed')).toBe('1500');
+    });
+  });
 });
 
