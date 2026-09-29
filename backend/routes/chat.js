@@ -3,15 +3,11 @@ const { Groq } = require("groq-sdk");
 
 const router = express.Router();
 
-const apiKey = process.env.GROQ_API_KEY?.trim();
-
-if (!apiKey) {
-  console.error("Missing GROQ_API_KEY in .env");
+function getGroqClient() {
+  const apiKey = process.env.GROQ_API_KEY?.trim();
+  if (!apiKey) return null;
+  return new Groq({ apiKey });
 }
-
-const groq = new Groq({
-  apiKey,
-});
 
 // Health Route
 router.get("/", (req, res) => {
@@ -24,16 +20,39 @@ router.get("/", (req, res) => {
 // Test Route
 router.get("/test", async (req, res) => {
   try {
+    const groq = getGroqClient();
+    if (!groq) {
+      return res.status(503).json({
+        success: false,
+        error: "AI service configuration error: Missing GROQ_API_KEY in backend environment.",
+      });
+    }
+
     const models = await groq.models.list();
+    const modelIds = models.data?.map((m) => m.id) || [];
 
     res.json({
       success: true,
-      modelCount: models.data?.length || 0,
+      modelCount: modelIds.length,
+      models: modelIds,
     });
   } catch (error) {
-    res.status(500).json({
+    const isAuthError =
+      error?.status === 401 ||
+      error?.code === "invalid_api_key" ||
+      /invalid api key/i.test(error?.message || "");
+
+    const statusCode = isAuthError
+      ? 502
+      : typeof error?.status === "number" && error.status >= 400 && error.status < 600
+      ? error.status
+      : 500;
+
+    res.status(statusCode).json({
       success: false,
-      error: error.message,
+      error: isAuthError
+        ? "AI service configuration error: Invalid or expired GROQ_API_KEY in backend environment."
+        : error.message,
     });
   }
 });
@@ -41,6 +60,15 @@ router.get("/test", async (req, res) => {
 // AI Route
 router.post("/", async (req, res) => {
   try {
+    const groq = getGroqClient();
+    if (!groq) {
+      console.error("GROQ CONFIG ERROR: Missing GROQ_API_KEY in backend environment");
+      return res.status(503).json({
+        success: false,
+        error: "AI service configuration error: Missing GROQ_API_KEY in backend environment. Please configure GROQ_API_KEY in deployment settings.",
+      });
+    }
+
     const { message, meta } = req.body;
 
     if (!message) {
@@ -136,7 +164,9 @@ router.post("/", async (req, res) => {
     }
 
     const isVisionRequest = meta?.type === "food_analyzer" && Boolean(meta?.image);
-    const modelName = isVisionRequest ? "llama-3.2-11b-vision-preview" : "llama-3.3-70b-versatile";
+    const textModel = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+    const visionModel = process.env.GROQ_VISION_MODEL || "llama-3.2-11b-vision-preview";
+    const modelName = isVisionRequest ? visionModel : textModel;
 
     let messages;
     if (isVisionRequest) {
@@ -195,11 +225,55 @@ router.post("/", async (req, res) => {
       reply,
     });
   } catch (error) {
-    console.error("GROQ ERROR:", error);
+    console.error("GROQ API ERROR:", {
+      status: error?.status,
+      code: error?.code,
+      message: error?.message,
+    });
 
-    return res.status(500).json({
+    const isAuthError =
+      error?.status === 401 ||
+      error?.code === "invalid_api_key" ||
+      /invalid api key/i.test(error?.message || "");
+
+    const isRateLimit =
+      error?.status === 429 ||
+      /rate limit/i.test(error?.message || "");
+
+    const isModelNotFoundError =
+      error?.status === 404 ||
+      error?.code === "model_not_found" ||
+      /model_not_found/i.test(error?.message || "");
+
+    if (isAuthError) {
+      return res.status(502).json({
+        success: false,
+        error: "AI service configuration error: Invalid or expired GROQ_API_KEY in backend environment. Please update the API key in deployment settings.",
+      });
+    }
+
+    if (isRateLimit) {
+      return res.status(429).json({
+        success: false,
+        error: "AI service rate limit reached. Please wait a moment before trying again.",
+      });
+    }
+
+    if (isModelNotFoundError) {
+      return res.status(502).json({
+        success: false,
+        error: "AI service configuration error: The configured AI model is not available or not permitted on this Groq account.",
+      });
+    }
+
+    const statusCode =
+      typeof error?.status === "number" && error.status >= 400 && error.status < 600
+        ? error.status
+        : 500;
+
+    return res.status(statusCode).json({
       success: false,
-      error: error.message,
+      error: error?.message || "Failed to process AI request",
     });
   }
 });

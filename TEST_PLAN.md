@@ -1,7 +1,7 @@
 # NutriAI — Software Quality Assurance Test Plan
 
 ## 1. Project Overview
-NutriAI (`nutriai_`) is an AI-powered personalized nutrition and wellness tracking single-page web application (SPA). It integrates a React 18 / TypeScript frontend powered by Vite with an Express.js (Node.js) backend API proxying requests to Groq Cloud LLMs (`llama-3.3-70b-versatile`). The application offers automated 7-day diet generation, interactive AI nutrition coaching, BMI assessment, caloric and macro breakdown, water intake tracking, weight progress logs, and client-side plan curation, using browser `localStorage` as its persistence layer.
+NutriAI (`nutriai_`) is an AI-powered personalized nutrition and wellness tracking single-page web application (SPA). It integrates a React 18 / TypeScript frontend powered by Vite with an Express.js (Node.js) backend API proxying requests to Groq Cloud LLMs (`llama-3.1-8b-instant` for text generation and `llama-3.2-11b-vision-preview` for vision analysis). The application offers automated 7-day diet generation, interactive AI nutrition coaching, BMI assessment, caloric and macro breakdown, water intake tracking, weight progress logs, and client-side plan curation, using browser `localStorage` as its persistence layer.
 
 ---
 
@@ -64,7 +64,7 @@ The objective of this QA initiative is to validate the reliability, functional c
 * **Node Runtime:** Node.js v22.23.1, npm v10.9.8
 * **Frontend Server:** Vite v5.4.0 (Development: `http://localhost:5173`, Dev runner: `http://localhost:4173`)
 * **Backend Server:** Express.js 5.2.1 (`http://localhost:5000`)
-* **AI Provider:** Groq Cloud API (`llama-3.3-70b-versatile`)
+* **AI Provider:** Groq Cloud API (`llama-3.1-8b-instant` text, `llama-3.2-11b-vision-preview` vision)
 * **Browsers:** Google Chrome, Microsoft Edge, Mozilla Firefox
 * **Testing Libraries:** Vitest, React Testing Library, jsdom
 

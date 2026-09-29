@@ -55,7 +55,7 @@ describe('Groq Frontend Service Client', () => {
     expect(result).toContain('Error: Network connection failed');
   });
 
-  it('handles HTTP error status codes from backend', async () => {
+  it('handles HTTP error status codes with backend error payload', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: false,
       status: 500,
@@ -63,7 +63,20 @@ describe('Groq Frontend Service Client', () => {
     } as Response);
 
     const result = await askNutritionCoach('Test server error');
-    expect(result).toContain('Error: HTTP error! status: 500');
+    expect(result).toBe('Error: Internal Server Error');
+  });
+
+  it('falls back to HTTP status string when backend provides no error payload', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      json: async () => {
+        throw new Error('Not JSON');
+      },
+    } as unknown as Response);
+
+    const result = await askNutritionCoach('Test server error');
+    expect(result).toBe('Error: HTTP error! status: 502');
   });
 
   it('analyzeFoodImage passes base64 image data in meta to backend', async () => {

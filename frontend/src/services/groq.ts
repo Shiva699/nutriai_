@@ -27,17 +27,27 @@ async function postToAI(
       body: JSON.stringify(payload),
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    let data: any = null;
+    try {
+      data = await response.json();
+    } catch {
+      // Non-JSON response
     }
 
-    const data = await response.json();
     logApiResponse(API_BASE_URL, response, data);
 
+    if (!response.ok) {
+      const serverError = data?.error || `HTTP error! status: ${response.status}`;
+      return {
+        success: false,
+        error: serverError,
+      };
+    }
+
     return {
-      success: data.success ?? false,
-      reply: data.reply ?? "",
-      error: data.error ?? "",
+      success: data?.success ?? false,
+      reply: data?.reply ?? "",
+      error: data?.error ?? "",
     };
   } catch (error: any) {
     console.error("❌ API Error:", error);
