@@ -35,6 +35,7 @@ export function FoodAnalyzer() {
       const r = await analyzeFoodImage(base64);
       setResult(r);
     } catch (err) {
+      console.error('Food analysis error:', err);
       setResult('Analysis failed');
     } finally {
       setLoading(false);
@@ -60,9 +61,10 @@ export function FoodAnalyzer() {
           <div className="h-64 w-full rounded-md bg-white/5 flex items-center justify-center">
             {preview ? <img src={preview} alt="preview" className="h-full w-full object-cover rounded-md" /> : <div className="text-slate-400">No image uploaded</div>}
           </div>
-          <div className="mt-4 flex gap-3">
+          <div className="mt-4 flex gap-3 items-center flex-wrap">
             <button onClick={handleAnalyze} disabled={!preview || loading} className="rounded-3xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950">{loading ? 'Analyzing...' : 'Analyze Image'}</button>
             <button onClick={() => { setFile(null); setPreview(null); setResult(null); }} className="rounded-3xl bg-white/5 px-4 py-2 text-sm text-slate-300">Clear</button>
+            {file && <span className="text-xs text-slate-400 truncate max-w-xs">{file.name}</span>}
           </div>
         </Card>
 

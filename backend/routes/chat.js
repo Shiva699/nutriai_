@@ -105,9 +105,65 @@ router.post("/", async (req, res) => {
         break;
     }
 
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: [
+    if (meta?.type === "diet_plan") {
+      if (meta?.age !== undefined && (Number(meta.age) < 18 || Number(meta.age) > 80)) {
+        return res.status(400).json({
+          success: false,
+          error: "Age must be between 18 and 80",
+        });
+      }
+      if (meta?.height !== undefined && (Number(meta.height) < 140 || Number(meta.height) > 220)) {
+        return res.status(400).json({
+          success: false,
+          error: "Height must be between 140 and 220 cm",
+        });
+      }
+      if (meta?.weight !== undefined && (Number(meta.weight) < 40 || Number(meta.weight) > 150)) {
+        return res.status(400).json({
+          success: false,
+          error: "Weight must be between 40 and 150 kg",
+        });
+      }
+    }
+
+    if (meta?.type === "food_analyzer") {
+      if (!meta?.image || typeof meta.image !== "string" || !meta.image.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: "Image data is required for food analysis",
+        });
+      }
+    }
+
+    const isVisionRequest = meta?.type === "food_analyzer" && Boolean(meta?.image);
+    const modelName = isVisionRequest ? "llama-3.2-11b-vision-preview" : "llama-3.3-70b-versatile";
+
+    let messages;
+    if (isVisionRequest) {
+      const rawImage = String(meta.image).trim();
+      const imageUrl = rawImage.startsWith("data:")
+        ? rawImage
+        : `data:image/jpeg;base64,${rawImage}`;
+
+      messages = [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `${message || "Analyze this food image"}. Identify the food, estimate portion size, and return estimated Calories, Protein, Carbs, and Fat breakdown.`,
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: imageUrl,
+              },
+            },
+          ],
+        },
+      ];
+    } else {
+      messages = [
         {
           role: "system",
           content: systemPrompt,
@@ -116,7 +172,12 @@ router.post("/", async (req, res) => {
           role: "user",
           content: message,
         },
-      ],
+      ];
+    }
+
+    const completion = await groq.chat.completions.create({
+      model: modelName,
+      messages,
       temperature: 0.6,
       max_tokens: 2000,
     });
@@ -126,7 +187,7 @@ router.post("/", async (req, res) => {
       "No response generated";
 
     console.log("========== AI RESPONSE ==========");
-    console.log(completion?.choices?.[0]?.message?.content);
+    console.log(reply);
     console.log("================================");
 
     return res.json({

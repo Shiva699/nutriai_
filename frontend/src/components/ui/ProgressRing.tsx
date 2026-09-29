@@ -17,7 +17,7 @@ export function ProgressRing({ size = 120, stroke = 10, percentage, color = '#06
       <defs>
         <linearGradient id="grad" x1="0%" x2="100%">
           <stop offset="0%" stopColor="#10b981" />
-          <stop offset="100%" stopColor="#06b6d4" />
+          <stop offset="100%" stopColor={color} />
         </linearGradient>
       </defs>
       <g transform={`translate(${size / 2}, ${size / 2})`}>

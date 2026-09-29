@@ -29,7 +29,7 @@ describe('Groq Frontend Service Client', () => {
     expect(calledOptions?.method).toBe('POST');
 
     const parsedBody = JSON.parse(calledOptions?.body as string);
-    expect(parsedBody.meta).toEqual({ type: 'diet_plan' });
+    expect(parsedBody.meta).toEqual({ type: 'diet_plan', ...payload });
     expect(parsedBody.message).toContain('Create a personalized 7 day meal plan');
     expect(result).toBe(mockReply);
   });
@@ -64,5 +64,27 @@ describe('Groq Frontend Service Client', () => {
 
     const result = await askNutritionCoach('Test server error');
     expect(result).toContain('Error: HTTP error! status: 500');
+  });
+
+  it('analyzeFoodImage passes base64 image data in meta to backend', async () => {
+    const { analyzeFoodImage } = await import('../services/groq');
+    const mockReply = 'Detected: Grilled Salmon with Steamed Broccoli. Approx 420 kcal, 42g protein, 8g carbs, 22g fat.';
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        reply: mockReply,
+      }),
+    } as Response);
+
+    const base64Data = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const result = await analyzeFoodImage(base64Data);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [, calledOptions] = fetchSpy.mock.calls[0];
+    const parsedBody = JSON.parse(calledOptions?.body as string);
+    expect(parsedBody.meta.type).toBe('food_analyzer');
+    expect(parsedBody.meta.image).toBe(base64Data);
+    expect(result).toBe(mockReply);
   });
 });

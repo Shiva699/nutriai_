@@ -13,8 +13,14 @@ const app = express();
 const allowedOrigins = [
   "https://nutriai-sable.vercel.app",
   "http://localhost:5173",
+  "http://localhost:4173",
   "http://localhost:3000",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:4173",
+  "http://127.0.0.1:3000",
 ];
+
+const isLocalhostOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 // CORS Configuration
 app.use(
@@ -25,22 +31,18 @@ app.use(
         return callback(null, true);
       }
 
-      // Allow localhost
-      if (allowedOrigins.includes(origin)) {
-        console.log(`✅ CORS Allowed: ${origin}`);
+      // Allow configured origins or any local dev port
+      if (allowedOrigins.includes(origin) || isLocalhostOrigin.test(origin)) {
         return callback(null, true);
       }
 
       // Allow ALL Vercel deployments
       if (origin.endsWith(".vercel.app")) {
-        console.log(`✅ CORS Allowed (Vercel): ${origin}`);
         return callback(null, true);
       }
 
       console.log(`❌ CORS Blocked: ${origin}`);
-      return callback(
-        new Error(`CORS policy: Origin ${origin} is not allowed`)
-      );
+      return callback(new Error(`CORS policy: Origin ${origin} is not allowed`));
     },
 
     credentials: true,

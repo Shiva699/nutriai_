@@ -24,12 +24,12 @@ All metrics represent genuine test execution performed directly against the repo
 | :--- | :--- | :--- |
 | **Total Test Cases Defined** | **48** | Documented in [`TEST_CASES.md`](./TEST_CASES.md) |
 | **Test Cases Actually Executed** | **32** | Interactive manual + API + unit execution |
-| ↳ **PASS** | **20** | Verified functional requirements |
-| ↳ **FAIL** | **4** | Real defects documented in [`BUG_REPORT.md`](./BUG_REPORT.md) |
+| ↳ **PASS** | **24** | Verified functional requirements & resolved defects |
+| ↳ **FAIL** | **0** | All documented functional defects resolved & verified |
 | ↳ **BLOCKED** | **8** | AI generation blocked by upstream Groq 401 invalid key |
 | **Not Executed** | **16** | Lower priority edge-case workflows reserved for future cycles |
 | **Automated Test Suites** | **5** | Vitest test files in `frontend/src/test/` |
-| **Automated Tests Executed** | **29** | 100% passing across mathematical, parser, and UI tests |
+| **Automated Tests Executed** | **34** | 100% passing across mathematical, parser, vision, and UI tests |
 
 ---
 
@@ -53,19 +53,22 @@ All metrics represent genuine test execution performed directly against the repo
    * Removing markdown headers (`###`).
    * Stripping list bullet characters (`-`, `*`, `1.`).
    * Whitespace and double-space normalization.
-3. **`src/test/dietPlanParser.test.ts` (4 tests):**
+3. **`src/test/dietPlanParser.test.ts` (5 tests):**
    * Fallback object generation on empty or malformed input.
    * 7-day multi-meal parsing into Breakfast, Lunch, Dinner, Snack objects.
    * Asset image association based on meal keywords.
-   * Demonstrates known limitation/defect with label-first prefix formatting (`Protein: 25g` vs `25g protein`).
-4. **`src/test/components.test.tsx` (8 tests):**
+   * Regression tests for label-first macro formatting (`Protein: 25g`).
+   * Bidirectional parsing for value-first, unitless, and space-separated formats.
+4. **`src/test/components.test.tsx` (11 tests):**
    * `BMICalculator`: Initial calculation rendering and dynamic recalculation on height/weight input changes.
    * `WaterTracker`: +250ml single-click increments, storage syncing, and full reset behavior.
    * `FoodAnalyzer`: Initial disabled button state, preview container, and clear/reset interaction.
    * `SavedPlans`: Empty list rendering and form validation alert on empty plan name.
-5. **`src/test/groqService.test.ts` (4 tests):**
+   * `DietPlannerPage`: Out-of-bounds boundary validation (Age 999 disabled, height/weight boundaries, valid state enable).
+5. **`src/test/groqService.test.ts` (5 tests):**
    * `generateDietPlan` envelope structure, HTTP POST method, and metadata validation.
    * `askNutritionCoach` query dispatch and response extraction.
+   * `analyzeFoodImage` payload structure and multimodal image packaging.
    * Graceful handling of network exceptions without unhandled promises.
    * Proper propagation and formatting of HTTP error status codes.
 
@@ -99,7 +102,7 @@ npx tsc --noEmit
 # Frontend production bundle build (0 errors)
 npm run build
 
-# ESLint code quality check (reports pre-existing issues documented in BUG-006)
+# ESLint code quality check (0 errors, 0 warnings)
 npm run lint
 ```
 
@@ -130,10 +133,10 @@ curl -X POST http://localhost:5000/api/chat -H "Content-Type: application/json" 
 
 ## 5. Known Limitations & Edge Cases
 
-1. **Upstream AI Dependency (Groq API Key):** Live AI calls depend on a valid, unexpired `GROQ_API_KEY`. When the key is missing or revoked, calls return HTTP 401. The frontend displays generic error fallbacks.
-2. **Food Analyzer Vision Limitation:** The backend uses `llama-3.3-70b-versatile`, a text-only model. Image analysis does not currently evaluate uploaded images visually.
-3. **Client-Side Persistence:** All data is saved in browser `localStorage`. Private browsing or cache clearing removes saved diet plans, weight logs, and water intake history.
-4. **CORS Development Origin Restriction:** `scripts/dev.mjs` binds to port 4173 by default, which is blocked by the backend CORS configuration unless port 5173 is used.
+1. **Upstream AI Dependency (Groq API Key):** Live AI calls depend on a valid, unexpired `GROQ_API_KEY`. When the key is unconfigured or invalid in local development, Groq returns HTTP 401. The frontend displays graceful error fallbacks.
+2. **Food Analyzer Vision Pipeline:** The backend is configured to route food analysis requests to `llama-3.2-11b-vision-preview` with multimodal image payloads. Successful inference requires an active Groq API key with vision model permissions.
+3. **Client-Side Persistence:** Application state is stored in browser `localStorage`. Private browsing or cache clearing removes saved diet plans, weight logs, and water intake history.
+4. **CORS Development Support:** Backend CORS dynamically supports local Vite ports (`5173`, `4173`, `3000`) and loopback addresses, alongside the production Vercel deployment.
 
 ---
 

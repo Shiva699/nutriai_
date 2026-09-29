@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { BMICalculator, WaterTracker, SavedPlans } from '../components/Pages';
+import { BMICalculator, WaterTracker, SavedPlans, DietPlannerPage } from '../components/Pages';
 import FoodAnalyzer from '../components/FoodAnalyzer';
 
 describe('Frontend React Components', () => {
@@ -103,6 +103,55 @@ describe('Frontend React Components', () => {
       fireEvent.click(saveBtn);
 
       expect(alertMock).toHaveBeenCalledWith('Plan name is required');
+    });
+  });
+
+  describe('DietPlannerPage Component', () => {
+    it('disables submit button and shows error when age is invalid (e.g., 999)', () => {
+      render(<DietPlannerPage />);
+      const ageInput = screen.getByLabelText(/Age/i);
+      const submitBtn = screen.getByRole('button', { name: /Generate AI Diet Plan/i });
+
+      // Default values are valid, so button starts enabled
+      expect(submitBtn).toBeEnabled();
+
+      // Enter out-of-range age (999)
+      fireEvent.change(ageInput, { target: { value: '999' } });
+
+      expect(screen.getByText(/Please enter an age between 18 and 80/i)).toBeInTheDocument();
+      expect(submitBtn).toBeDisabled();
+    });
+
+    it('enables submit button when all fields are within valid boundaries', () => {
+      render(<DietPlannerPage />);
+      const ageInput = screen.getByLabelText(/Age/i);
+      const heightInput = screen.getByLabelText(/Height \(cm\)/i);
+      const weightInput = screen.getByLabelText(/Weight \(kg\)/i);
+      const submitBtn = screen.getByRole('button', { name: /Generate AI Diet Plan/i });
+
+      fireEvent.change(ageInput, { target: { value: '25' } });
+      fireEvent.change(heightInput, { target: { value: '175' } });
+      fireEvent.change(weightInput, { target: { value: '70' } });
+
+      expect(submitBtn).toBeEnabled();
+    });
+
+    it('disables submit button when height or weight are out of range', () => {
+      render(<DietPlannerPage />);
+      const heightInput = screen.getByLabelText(/Height \(cm\)/i);
+      const weightInput = screen.getByLabelText(/Weight \(kg\)/i);
+      const submitBtn = screen.getByRole('button', { name: /Generate AI Diet Plan/i });
+
+      // Out of range height (120 < 140)
+      fireEvent.change(heightInput, { target: { value: '120' } });
+      expect(screen.getByText(/Height should be between 140 and 220 cm/i)).toBeInTheDocument();
+      expect(submitBtn).toBeDisabled();
+
+      // Restore height, enter out-of-range weight (200 > 150)
+      fireEvent.change(heightInput, { target: { value: '170' } });
+      fireEvent.change(weightInput, { target: { value: '200' } });
+      expect(screen.getByText(/Weight should be between 40 and 150 kg/i)).toBeInTheDocument();
+      expect(submitBtn).toBeDisabled();
     });
   });
 });

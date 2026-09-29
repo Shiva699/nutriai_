@@ -111,7 +111,7 @@ export function parseDietPlanResponse(raw: string): ParsedDay[] {
 
   let activeMeal: MealType | null = null;
 
-  const dayHeaderRegex = /^(?:\d+[\.\)]\s*)?(day\s*\d+|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b(?:[:\-]?\s*(.*))?$/i;
+  const dayHeaderRegex = /^(?:\d+[.)]\s*)?(day\s*\d+|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b(?:[:-]?\s*(.*))?$/i;
 
   const hasBufferContent = () =>
     buffer.Breakfast.length ||
@@ -131,10 +131,10 @@ export function parseDietPlanResponse(raw: string): ParsedDay[] {
     if (!activeMeal) return;
 
     const cleaned = line
-      .replace(/^[\*\-\•]\s*/, '')
-      .replace(/^\d+[\.\)]\s*/, '')
+      .replace(/^[*•-]\s*/, '')
+      .replace(/^\d+[.)]\s*/, '')
       .replace(/\b(breakfast|lunch|dinner|snacks?)\b/gi, '')
-      .replace(/[:\-]/g, '')
+      .replace(/[:-]/g, '')
       .trim();
 
     if (cleaned.length > 0) {
@@ -145,7 +145,7 @@ export function parseDietPlanResponse(raw: string): ParsedDay[] {
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
-    const strippedLine = line.replace(/^[\*\-\•]\s*/, '').replace(/^\d+[\.\)]\s*/, '').trim();
+    const strippedLine = line.replace(/^[*•-]\s*/, '').replace(/^\d+[.)]\s*/, '').trim();
 
     const dayMatch = strippedLine.match(dayHeaderRegex);
 
@@ -238,19 +238,42 @@ function buildMeal(type: MealType, lines: string[]): ParsedMeal {
     title: `${type} Meal`,
     description: text || `Healthy ${type.toLowerCase()} option`,
 
-    // ✅ FIXED MACROS (ROBUST EXTRACTION)
-    calories: extract(text, /(\d{2,4})\s*(?:calories?|kcal)/i),
-    protein: extract(text, /(\d{1,3})\s*g\s*protein/i),
-    carbs: extract(text, /(\d{1,3})\s*g\s*carb/i),
-    fat: extract(text, /(\d{1,3})\s*g\s*fat/i),
+    // ✅ ROBUST BIDIRECTIONAL MACRO EXTRACTION
+    calories: extractMacro(
+      text,
+      /(?:calories?|kcal)\s*[:-]?\s*(\d{2,4})/i,
+      /(\d{2,4})\s*(?:calories?|kcal)/i
+    ),
+    protein: extractMacro(
+      text,
+      /(?:protein)\s*[:-]?\s*(\d{1,3})\s*g?/i,
+      /(\d{1,3})\s*g?\s*(?:of\s*)?protein/i
+    ),
+    carbs: extractMacro(
+      text,
+      /(?:carbs?|carbohydrates?)\s*[:-]?\s*(\d{1,3})\s*g?/i,
+      /(\d{1,3})\s*g?\s*(?:of\s*)?carbs?/i
+    ),
+    fat: extractMacro(
+      text,
+      /(?:fats?)\s*[:-]?\s*(\d{1,3})\s*g?/i,
+      /(\d{1,3})\s*g?\s*(?:of\s*)?fat/i
+    ),
 
     image: selectMealImage(type, text),
   };
 }
 
-function extract(text: string, regex: RegExp): number | null {
-  const match = text.match(regex);
-  return match ? Number(match[1]) : null;
+function extractMacro(text: string, labelRegex: RegExp, valueFirstRegex: RegExp): number | null {
+  const labelMatch = text.match(labelRegex);
+  if (labelMatch && labelMatch[1]) {
+    return Number(labelMatch[1]);
+  }
+  const valueMatch = text.match(valueFirstRegex);
+  if (valueMatch && valueMatch[1]) {
+    return Number(valueMatch[1]);
+  }
+  return null;
 }
 
 function fallbackDay(name: string, raw: string): ParsedDay {

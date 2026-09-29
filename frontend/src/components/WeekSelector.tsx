@@ -14,7 +14,7 @@ interface WeekSelectorProps {
   onNextWeek: () => void;
 }
 
-export function WeekSelector({ days, onSelectDay, selectedDay, onPreviousWeek, onNextWeek }: WeekSelectorProps) {
+export function WeekSelector({ days, onSelectDay, selectedDay: _selectedDay, onPreviousWeek, onNextWeek }: WeekSelectorProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">

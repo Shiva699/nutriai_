@@ -59,8 +59,7 @@ Snack: Greek yogurt 150 calories 15g protein 10g carbs 2g fat
     expect(day1.meals[0].image).toContain('/assets/meals/');
   });
 
-  it('demonstrates known parser limitation with prefix-style macro labels (BUG-004)', () => {
-    // When LLM generates "Protein: 25g" rather than "25g protein", current regex fails to match
+  it('correctly parses prefix-style macro labels (Fixed BUG-004)', () => {
     const prefixFormat = `
 Day 1
 Breakfast: Omelette
@@ -72,7 +71,26 @@ Fat: 18g
     const parsed = parseDietPlanResponse(prefixFormat);
     const breakfast = parsed[0]?.meals.find(m => m.type === 'Breakfast');
     expect(breakfast).toBeDefined();
-    // BUG-004 verification: extract regex expects "(\d+)g protein" so "Protein: 25g" returns null
-    expect(breakfast?.protein).toBeNull();
+    expect(breakfast?.calories).toBe(300);
+    expect(breakfast?.protein).toBe(25);
+    expect(breakfast?.carbs).toBe(10);
+    expect(breakfast?.fat).toBe(18);
+  });
+
+  it('correctly parses value-first, space-separated, and unitless macro formats', () => {
+    const mixedFormat = `
+Day 1
+Breakfast: Tofu scramble. 320 kcal, 24 g protein, 15 g carbs, 12 g fat.
+Lunch: Turkey sandwich. 410 calories, 35g of protein, 45g carbs, 10g of fat.
+Dinner: Grilled chicken. Calories: 500. Protein: 45. Carbs: 30. Fat: 14.
+Snack: Protein shake. 200 calories, 30g protein, 5g carbs, 3g fat.
+`;
+    const parsed = parseDietPlanResponse(mixedFormat);
+    const day1 = parsed[0];
+    expect(day1.meals[0].protein).toBe(24);
+    expect(day1.meals[0].calories).toBe(320);
+    expect(day1.meals[1].protein).toBe(35);
+    expect(day1.meals[2].protein).toBe(45);
+    expect(day1.meals[2].calories).toBe(500);
   });
 });

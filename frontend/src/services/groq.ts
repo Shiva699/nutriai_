@@ -49,12 +49,12 @@ async function postToAI(
 }
 
 export async function generateDietPlan(payload: any): Promise<string> {
-const res = await postToAI(
-`Create a personalized 7 day meal plan for ${JSON.stringify(payload)}`,
-{ type: "diet_plan" }
-);
+  const res = await postToAI(
+    `Create a personalized 7 day meal plan for ${JSON.stringify(payload)}`,
+    { type: "diet_plan", ...payload }
+  );
 
-return res.success ? res.reply || "" : `Error: ${res.error}`;
+  return res.success ? res.reply || "" : `Error: ${res.error}`;
 }
 
 export async function askNutritionCoach(

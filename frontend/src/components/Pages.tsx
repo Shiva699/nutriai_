@@ -1,16 +1,12 @@
 import { motion } from 'framer-motion';
 import { useMemo, useState, useEffect } from 'react';
-import { FiBarChart2, FiCheckCircle, FiClock, FiDroplet, FiHeart, FiMessageCircle, FiPieChart, FiTrendingUp } from 'react-icons/fi';
+import { FiBarChart2, FiCheckCircle, FiClock, FiDroplet, FiHeart, FiPieChart, FiTrendingUp } from 'react-icons/fi';
 import { Header } from './Header';
 import { InsightCard } from './InsightCard';
 import { MealCard } from './MealCard';
 import { SnackCard } from './SnackCard';
 import { WeekSelector } from './WeekSelector';
 import { generateDietPlan, askNutritionCoach, analyzeBMI, predictWeightTimeline, calorieRecommendations, hydrationRecommendation, explainMacros, progressSummary, healthScore } from '../services/groq';
-import { Card } from './ui/Card';
-import ProgressRing from './ui/ProgressRing';
-import Gauge from './ui/Gauge';
-import Avatar from './ui/Avatar';
 import DietPlanRenderer from './DietPlanRenderer';
 import { parseDietPlanResponse } from './dietPlanParser';
 import { sanitizeAIText } from './aiText';
@@ -96,13 +92,13 @@ export function DashboardOverview() {
   const [loadingInsight, setLoadingInsight] = useState(false);
 
   // Persisted dashboard overview values
-  const [dailyCalories, setDailyCalories] = useState<string>(() => localStorage.getItem('nv_daily_calories') || '1,850 kcal');
-  const [currentBMI, setCurrentBMI] = useState<string>(() => localStorage.getItem('nv_current_bmi') || '22.8');
-  const [currentWeight, setCurrentWeight] = useState<string>(() => localStorage.getItem('nv_current_weight') || '72.4 kg');
-  const [waterIntake, setWaterIntake] = useState<string>(() => localStorage.getItem('nv_water_intake') || '1.9 L');
-  const [dailyCaloriesDetail, setDailyCaloriesDetail] = useState<string>(() => localStorage.getItem('nv_daily_calories_detail') || '85% of goal');
-  const [weightDetail, setWeightDetail] = useState<string>(() => localStorage.getItem('nv_weight_detail') || '+0.3 kg this week');
-  const [waterDetail, setWaterDetail] = useState<string>(() => localStorage.getItem('nv_water_detail') || '95% goal');
+  const [dailyCalories] = useState<string>(() => localStorage.getItem('nv_daily_calories') || '1,850 kcal');
+  const [currentBMI] = useState<string>(() => localStorage.getItem('nv_current_bmi') || '22.8');
+  const [currentWeight] = useState<string>(() => localStorage.getItem('nv_current_weight') || '72.4 kg');
+  const [waterIntake] = useState<string>(() => localStorage.getItem('nv_water_intake') || '1.9 L');
+  const [dailyCaloriesDetail] = useState<string>(() => localStorage.getItem('nv_daily_calories_detail') || '85% of goal');
+  const [weightDetail] = useState<string>(() => localStorage.getItem('nv_weight_detail') || '+0.3 kg this week');
+  const [waterDetail] = useState<string>(() => localStorage.getItem('nv_water_detail') || '95% goal');
 
   // sync to localStorage
   useEffect(() => { localStorage.setItem('nv_daily_calories', dailyCalories); }, [dailyCalories]);
@@ -283,7 +279,16 @@ export function DietPlannerPage() {
     return ((today.getDay() + 6) % 7);
   });
 
+  const isAgeValid = typeof age === 'number' && !Number.isNaN(age) && age >= 18 && age <= 80;
+  const isHeightValid = typeof height === 'number' && !Number.isNaN(height) && height >= 140 && height <= 220;
+  const isWeightValid = typeof weight === 'number' && !Number.isNaN(weight) && weight >= 40 && weight <= 150;
+  const isFormValid = isAgeValid && isHeightValid && isWeightValid;
+
   const handleGenerate = async () => {
+    if (!isFormValid) {
+      setError('Please provide valid inputs: Age (18-80), Height (140-220 cm), Weight (40-150 kg).');
+      return;
+    }
     setLoading(true);
     setError(null);
     setPlan(null);
@@ -583,7 +588,7 @@ export function DietPlannerPage() {
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <button
                 onClick={handleGenerate}
-                disabled={loading}
+                disabled={loading || !isFormValid}
                 className="w-full rounded-3xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
                 {loading ? 'Generating...' : 'Generate AI Diet Plan'}
@@ -635,7 +640,7 @@ export function AINutritionCoach() {
     try {
       const reply = await askNutritionCoach(userText);
       setMessages((m) => [...m, { role: 'assistant', text: reply }]);
-    } catch (err) {
+    } catch {
       setMessages((m) => [...m, { role: 'assistant', text: 'Error: failed to get response.' }]);
     } finally {
       setLoading(false);
@@ -734,7 +739,7 @@ export function BMICalculator() {
           <p className="font-semibold text-white">Recommendation</p>
           <p className="mt-3">{recommendation}</p>
           <div className="mt-4 flex gap-3">
-            <button onClick={async () => { setAiLoading(true); setAiAnalysis(null); try { const r = await analyzeBMI(height, weight); setAiAnalysis(r); } catch (e) { setAiAnalysis('Failed to get analysis'); } finally { setAiLoading(false); } }} className="rounded-3xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950">{aiLoading ? 'Analyzing...' : 'Get AI Analysis'}</button>
+            <button onClick={async () => { setAiLoading(true); setAiAnalysis(null); try { const r = await analyzeBMI(height, weight); setAiAnalysis(r); } catch { setAiAnalysis('Failed to get analysis'); } finally { setAiLoading(false); } }} className="rounded-3xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950">{aiLoading ? 'Analyzing...' : 'Get AI Analysis'}</button>
           </div>
           {aiAnalysis && (
             <div className="mt-4 rounded-2xl bg-slate-950/80 p-4 text-sm text-slate-300">
@@ -757,7 +762,7 @@ export function WeightTracker() {
         { date: 'Jun 20', weight: 72.1 },
         { date: 'Jun 22', weight: 72.4 },
       ];
-    } catch (e) {
+    } catch {
       return [
         { date: 'Jun 16', weight: 71.8 },
         { date: 'Jun 18', weight: 72.0 },
@@ -771,7 +776,7 @@ export function WeightTracker() {
     const s = localStorage.getItem('nv_goal_weight');
     return s ? Number(s) : 68;
   });
-  const [userHeight, setUserHeight] = useState<number>(() => {
+  const [userHeight] = useState<number>(() => {
     const s = localStorage.getItem('nv_user_height');
     return s ? Number(s) : 170;
   });
@@ -832,6 +837,7 @@ export function WeightTracker() {
               <div>
                 <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Weekly progress</p>
                 <p className="mt-3 text-3xl font-semibold text-white">{weeklyChangeNum >= 0 ? '+' : ''}{weeklyChange} kg</p>
+                <p className="mt-1 text-xs text-slate-400">Current BMI: {currentBMI}</p>
               </div>
               <FiTrendingUp className="h-6 w-6 text-cyan-300" />
             </div>
@@ -857,7 +863,7 @@ export function WeightTracker() {
               <label className="block text-sm uppercase tracking-[0.3em] text-slate-400">Goal weight (kg)</label>
               <div className="mt-2 flex gap-2">
                 <input type="number" value={goalWeight ?? ''} onChange={(e) => setGoalWeight(Number(e.target.value))} className="rounded-3xl border border-white/10 bg-slate-950/90 px-4 py-2 text-white" />
-                <button onClick={async () => { if (!goalWeight) return; setPredLoading(true); setPrediction(null); try { const r = await predictWeightTimeline(Number(weightHistory[0]?.weight ?? entry), goalWeight); setPrediction(r); } catch (e) { setPrediction('Prediction failed'); } finally { setPredLoading(false); } }} className="rounded-3xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">{predLoading ? 'Predicting...' : 'AI Prediction'}</button>
+                <button onClick={async () => { if (!goalWeight) return; setPredLoading(true); setPrediction(null); try { const r = await predictWeightTimeline(Number(weightHistory[0]?.weight ?? entry), goalWeight); setPrediction(r); } catch { setPrediction('Prediction failed'); } finally { setPredLoading(false); } }} className="rounded-3xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950">{predLoading ? 'Predicting...' : 'AI Prediction'}</button>
               </div>
               {prediction && <div className="mt-3 rounded-2xl bg-white/5 p-3 text-sm text-slate-300"><div className="whitespace-pre-wrap break-words">{sanitizeAIText(prediction)}</div></div>}
             </div>
@@ -987,7 +993,7 @@ export function CalorieCalculator() {
           ))}
         </div>
         <div className="mt-6">
-          <button onClick={async () => { setAiLoading(true); setAiRecs(null); try { const r = await calorieRecommendations({ age, gender, height, weight, activity }); setAiRecs(r); } catch (e) { setAiRecs('Failed to fetch recommendations'); } finally { setAiLoading(false); } }} className="rounded-3xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950">{aiLoading ? 'Loading...' : 'Get AI Recommendations'}</button>
+          <button onClick={async () => { setAiLoading(true); setAiRecs(null); try { const r = await calorieRecommendations({ age, gender, height, weight, activity }); setAiRecs(r); } catch { setAiRecs('Failed to fetch recommendations'); } finally { setAiLoading(false); } }} className="rounded-3xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950">{aiLoading ? 'Loading...' : 'Get AI Recommendations'}</button>
           {aiRecs && <div className="mt-4 rounded-2xl bg-white/5 p-4 text-sm text-slate-300"><div className="whitespace-pre-wrap break-words">{sanitizeAIText(aiRecs)}</div></div>}
         </div>
       </div>
@@ -996,7 +1002,7 @@ export function CalorieCalculator() {
 }
 
 export function WaterTracker() {
-  const [goal, setGoal] = useState<number>(() => {
+  const [goal] = useState<number>(() => {
     const s = localStorage.getItem('nv_water_goal');
     return s ? Number(s) : 2000;
   });
@@ -1008,7 +1014,7 @@ export function WaterTracker() {
     try {
       const raw = localStorage.getItem('nv_water_history');
       return raw ? JSON.parse(raw) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   });
@@ -1071,7 +1077,7 @@ export function WaterTracker() {
       </div>
 
       <div className="mt-4">
-        <button onClick={async () => { setHydrationLoading(true); setHydrationAdvice(null); try { const r = await hydrationRecommendation(goal, consumed); setHydrationAdvice(r); } catch (e) { setHydrationAdvice('Failed to get advice'); } finally { setHydrationLoading(false); } }} className="rounded-3xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950">{hydrationLoading ? 'Loading...' : 'AI Hydration Tip'}</button>
+        <button onClick={async () => { setHydrationLoading(true); setHydrationAdvice(null); try { const r = await hydrationRecommendation(goal, consumed); setHydrationAdvice(r); } catch { setHydrationAdvice('Failed to get advice'); } finally { setHydrationLoading(false); } }} className="rounded-3xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950">{hydrationLoading ? 'Loading...' : 'AI Hydration Tip'}</button>
         {hydrationAdvice && <div className="mt-3 rounded-2xl bg-white/5 p-3 text-sm text-slate-300"><div className="whitespace-pre-wrap break-words">{sanitizeAIText(hydrationAdvice)}</div></div>}
       </div>
 
@@ -1166,7 +1172,7 @@ export function MacroCalculator() {
               ))}
             </div>
             <div className="mt-4">
-              <button onClick={async () => { setMacroLoading(true); setMacroExplanation(null); try { const r = await explainMacros(calories); setMacroExplanation(r); } catch (e) { setMacroExplanation('Failed to fetch explanation'); } finally { setMacroLoading(false); } }} className="rounded-3xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950">{macroLoading ? 'Loading...' : 'Explain macros (AI)'}</button>
+              <button onClick={async () => { setMacroLoading(true); setMacroExplanation(null); try { const r = await explainMacros(calories); setMacroExplanation(r); } catch { setMacroExplanation('Failed to fetch explanation'); } finally { setMacroLoading(false); } }} className="rounded-3xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950">{macroLoading ? 'Loading...' : 'Explain macros (AI)'}</button>
               {macroExplanation && <div className="mt-3 rounded-2xl bg-white/5 p-3 text-sm text-slate-300"><div className="whitespace-pre-wrap break-words">{sanitizeAIText(macroExplanation)}</div></div>}
             </div>
           </div>
@@ -1184,7 +1190,7 @@ export function ProgressAnalytics() {
       if (raw) return JSON.parse(raw);
       const hist = JSON.parse(localStorage.getItem('nv_weight_history') || '[]');
       return (hist || []).slice(0, 6).map((h: any) => h.weight).reverse();
-    } catch (e) {
+    } catch {
       return [72.4, 72.1, 71.8, 71.7, 71.5, 71.4];
     }
   });
@@ -1196,16 +1202,16 @@ export function ProgressAnalytics() {
       // derive from weightTrend if possible (assume height stored)
       const height = Number(localStorage.getItem('nv_user_height') || 170);
       return weightTrend.map((w) => Number((w / ((height / 100) ** 2)).toFixed(1)));
-    } catch (e) {
+    } catch {
       return [23.2, 23.0, 22.8, 22.7, 22.6, 22.5];
     }
   });
 
-  const [calorieTrend, setCalorieTrend] = useState<number[]>(() => {
+  const [calorieTrend] = useState<number[]>(() => {
     try {
       const raw = localStorage.getItem('nv_calorie_trend');
       return raw ? JSON.parse(raw) : [1900, 1850, 1800, 1880, 1840, 1820];
-    } catch (e) {
+    } catch {
       return [1900, 1850, 1800, 1880, 1840, 1820];
     }
   });
@@ -1224,7 +1230,7 @@ export function ProgressAnalytics() {
         const height = Number(localStorage.getItem('nv_user_height') || 170);
         setBmiTrend(derived.map((w: number) => Number((w / ((height / 100) ** 2)).toFixed(1))));
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, []);
@@ -1345,7 +1351,7 @@ export function ProgressAnalytics() {
           </div>
         </div>
         <div className="mt-4">
-          <button onClick={async () => { setAiLoading(true); setAiSummary(null); try { const r = await progressSummary({ weightTrend, bmiTrend, calorieTrend }); setAiSummary(r); } catch (e) { setAiSummary('Failed to fetch summary'); } finally { setAiLoading(false); } }} className="rounded-3xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950">{aiLoading ? 'Loading...' : 'AI Progress Summary'}</button>
+          <button onClick={async () => { setAiLoading(true); setAiSummary(null); try { const r = await progressSummary({ weightTrend, bmiTrend, calorieTrend }); setAiSummary(r); } catch { setAiSummary('Failed to fetch summary'); } finally { setAiLoading(false); } }} className="rounded-3xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950">{aiLoading ? 'Loading...' : 'AI Progress Summary'}</button>
           {aiSummary && <div className="mt-3 rounded-2xl bg-slate-950/80 p-3 text-sm text-slate-300"><div className="whitespace-pre-wrap break-words">{sanitizeAIText(aiSummary)}</div></div>}
         </div>
       </div>
@@ -1358,7 +1364,7 @@ export function SavedPlans() {
     try {
       const raw = localStorage.getItem('nv_saved_plans');
       return raw ? JSON.parse(raw) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   });

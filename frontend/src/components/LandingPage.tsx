@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { FiArrowRight, FiCheckCircle, FiCpu, FiHeart, FiShield, FiMail, FiGithub, FiLinkedin, FiTwitter, FiLock, FiZap, FiTrendingUp } from 'react-icons/fi';
 
 const features = [
@@ -16,6 +16,20 @@ const faqs = [
 ];
 
 export function LandingPage() {
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterStatus, setNewsletterStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  const handleNewsletterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newsletterEmail.trim();
+    if (!trimmed || !trimmed.includes('@') || !trimmed.includes('.')) {
+      setNewsletterStatus('error');
+      return;
+    }
+    setNewsletterStatus('success');
+    setNewsletterEmail('');
+  };
+
   useEffect(() => {
     const io = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
@@ -236,10 +250,25 @@ export function LandingPage() {
                   <h2 className="text-4xl font-bold text-white">Stay in the loop</h2>
                   <p className="text-lg text-slate-300">Get weekly nutrition tips, new AI features, and health insights delivered to your inbox.</p>
                 </div>
-                <form className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto w-full">
-                  <input type="email" placeholder="Enter your email" className="flex-1 rounded-full bg-slate-900/50 border border-slate-700/50 px-6 py-3 text-white placeholder-slate-500 outline-none focus:border-emerald-500/50 transition-all" />
+                <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto w-full">
+                  <input
+                    type="email"
+                    value={newsletterEmail}
+                    onChange={(e) => {
+                      setNewsletterEmail(e.target.value);
+                      if (newsletterStatus !== 'idle') setNewsletterStatus('idle');
+                    }}
+                    placeholder="Enter your email"
+                    className="flex-1 rounded-full bg-slate-900/50 border border-slate-700/50 px-6 py-3 text-white placeholder-slate-500 outline-none focus:border-emerald-500/50 transition-all"
+                  />
                   <button type="submit" className="rounded-full bg-emerald-500 px-8 py-3 font-semibold text-slate-950 hover:bg-emerald-400 transition-all">Subscribe</button>
                 </form>
+                {newsletterStatus === 'success' && (
+                  <p className="text-sm text-emerald-400 font-medium">Thank you for subscribing! We will keep you updated.</p>
+                )}
+                {newsletterStatus === 'error' && (
+                  <p className="text-sm text-rose-400 font-medium">Please enter a valid email address.</p>
+                )}
                 <p className="text-xs text-slate-500">No spam. Unsubscribe anytime.</p>
               </div>
             </div>
