@@ -164,9 +164,17 @@ router.post("/", async (req, res) => {
     }
 
     const isVisionRequest = meta?.type === "food_analyzer" && Boolean(meta?.image);
-    const textModel = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+    const primaryTextModel = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
     const visionModel = process.env.GROQ_VISION_MODEL || "llama-3.2-11b-vision-preview";
-    const modelName = isVisionRequest ? visionModel : textModel;
+
+    const candidateModels = isVisionRequest
+      ? [visionModel]
+      : [
+          primaryTextModel,
+          "openai/gpt-oss-20b",
+          "openai/gpt-oss-120b",
+          "qwen/qwen3.8-27b",
+        ].filter((val, idx, arr) => val && arr.indexOf(val) === idx);
 
     let messages;
     if (isVisionRequest) {
@@ -205,24 +213,44 @@ router.post("/", async (req, res) => {
       ];
     }
 
-    const completion = await groq.chat.completions.create({
-      model: modelName,
-      messages,
-      temperature: 0.6,
-      max_tokens: 2000,
-    });
+    let completion = null;
+    let usedModel = candidateModels[0];
+
+    for (const modelToTry of candidateModels) {
+      try {
+        usedModel = modelToTry;
+        completion = await groq.chat.completions.create({
+          model: modelToTry,
+          messages,
+          temperature: 0.6,
+          max_tokens: 2000,
+        });
+        break;
+      } catch (err) {
+        const isNotFound =
+          err?.status === 404 ||
+          err?.code === "model_not_found" ||
+          /model_not_found/i.test(err?.message || "");
+
+        if (!isNotFound || modelToTry === candidateModels[candidateModels.length - 1]) {
+          throw err;
+        }
+        console.warn(`Model ${modelToTry} not available, attempting next candidate...`);
+      }
+    }
 
     const reply =
       completion?.choices?.[0]?.message?.content ||
       "No response generated";
 
-    console.log("========== AI RESPONSE ==========");
+    console.log(`========== AI RESPONSE (${usedModel}) ==========`);
     console.log(reply);
     console.log("================================");
 
     return res.json({
       success: true,
       reply,
+      model: usedModel,
     });
   } catch (error) {
     console.error("GROQ API ERROR:", {

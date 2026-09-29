@@ -10,9 +10,9 @@ describe('Groq Model Configuration & Anti-Regression Suite', () => {
     expect(fileContent).not.toContain('llama-3.3-70b-versatile');
   });
 
-  it('configures verified available llama-3.1-8b-instant for text generation', () => {
+  it('configures verified available openai/gpt-oss-20b for text generation', () => {
     const fileContent = fs.readFileSync(chatRoutePath, 'utf8');
-    expect(fileContent).toContain('llama-3.1-8b-instant');
+    expect(fileContent).toContain('openai/gpt-oss-20b');
   });
 
   it('preserves separate vision model llama-3.2-11b-vision-preview for Food Analyzer', () => {
