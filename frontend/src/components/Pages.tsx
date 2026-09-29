@@ -2210,19 +2210,27 @@ export function CalorieCalculator() {
 }
 
 export function WaterTracker() {
-  const [goal] = useState<number>(() => {
+  const [goal, setGoal] = useState<number>(() => {
     const s = localStorage.getItem('nv_water_goal');
     return s && !isNaN(Number(s)) && Number(s) > 0 ? Number(s) : 2000;
   });
+  const [goalInput, setGoalInput] = useState<string>(() => {
+    const s = localStorage.getItem('nv_water_goal');
+    return s && !isNaN(Number(s)) && Number(s) > 0 ? String(s) : '2000';
+  });
   const [consumed, setConsumed] = useState<number>(() => {
     const date = localStorage.getItem('nv_water_date');
-    if (date && !isHydrationDateToday(date)) {
+    if (!date || !isHydrationDateToday(date)) {
       return 0;
     }
     const s = localStorage.getItem('nv_water_consumed');
     return s && !isNaN(Number(s)) && Number(s) > 0 ? Number(s) : 0;
   });
-  const [history, setHistory] = useState<{ label: string; amount: number; date?: string }[]>(() => {
+  const [customAmount, setCustomAmount] = useState<string>('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+
+  const [history, setHistory] = useState<{ label: string; amount: number; date?: string; time?: string }[]>(() => {
     try {
       const raw = localStorage.getItem('nv_water_history');
       if (!raw) return [];
@@ -2230,6 +2238,7 @@ export function WaterTracker() {
       if (!Array.isArray(parsed)) return [];
       return parsed.filter((item) => {
         if (!item || typeof item !== 'object') return false;
+        if (typeof item.amount !== 'number' || isNaN(item.amount) || item.amount <= 0) return false;
         if (item.date && !isHydrationDateToday(item.date)) return false;
         return true;
       });
@@ -2238,112 +2247,366 @@ export function WaterTracker() {
     }
   });
 
-  const progress = goal > 0 ? Math.min(100, Math.round((consumed / goal) * 100)) : 0;
+  const progress = goal > 0 ? Math.round((consumed / goal) * 100) : 0;
 
-  const addGlass = () => {
+  const handleAddWater = (amount: number, labelPrefix?: string) => {
+    setErrorMsg(null);
+    setStatusMsg(null);
+    if (isNaN(amount) || !isFinite(amount) || amount <= 0) {
+      setErrorMsg('Please enter a valid positive water amount.');
+      return;
+    }
+    if (amount > 5000) {
+      setErrorMsg('Single water entry cannot exceed 5000 ml.');
+      return;
+    }
     const today = getTodayDateString();
-    const nextConsumed = Math.min(goal, consumed + 250);
+    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const nextConsumed = consumed + amount;
+    const nextHistory = [
+      { label: labelPrefix || `+${amount} ml`, amount, date: today, time: nowTime },
+      ...history,
+    ].slice(0, 20);
+
     setConsumed(nextConsumed);
-    const nextHistory = [{ label: 'Added', amount: 250, date: today }, ...history].slice(0, 6);
     setHistory(nextHistory);
+    setStatusMsg(`Recorded ${amount} ml of water intake.`);
+
     localStorage.setItem('nv_water_consumed', String(nextConsumed));
     localStorage.setItem('nv_water_goal', String(goal));
     localStorage.setItem('nv_water_date', today);
     localStorage.setItem('nv_water_history', JSON.stringify(nextHistory));
-    localStorage.setItem('nv_water_intake', `${(nextConsumed/1000).toFixed(1)} L`);
-    localStorage.setItem('nv_water_detail', `${Math.round((nextConsumed/goal)*100)}% goal`);
+    localStorage.setItem('nv_water_intake', `${(nextConsumed / 1000).toFixed(1)} L`);
+    localStorage.setItem('nv_water_detail', `${Math.round((nextConsumed / goal) * 100)}% goal`);
+
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  const addGlass = () => {
+    handleAddWater(250, 'Added 250ml');
+  };
+
+  const handleCustomAdd = () => {
+    const trimmed = customAmount.trim();
+    if (!trimmed) {
+      setErrorMsg('Please enter a water amount.');
+      return;
+    }
+    const num = Number(trimmed);
+    if (isNaN(num) || !isFinite(num) || num <= 0) {
+      setErrorMsg('Water amount must be a number greater than 0.');
+      return;
+    }
+    handleAddWater(Math.round(num));
+    setCustomAmount('');
+  };
+
+  const handleSetGoal = () => {
+    setErrorMsg(null);
+    setStatusMsg(null);
+    const trimmed = goalInput.trim();
+    if (!trimmed) {
+      setErrorMsg('Please enter a goal amount.');
+      return;
+    }
+    const num = Number(trimmed);
+    if (isNaN(num) || !isFinite(num) || num < 500 || num > 10000) {
+      setErrorMsg('Daily water goal must be between 500 ml and 10,000 ml.');
+      return;
+    }
+    const newGoal = Math.round(num);
+    setGoal(newGoal);
+    localStorage.setItem('nv_water_goal', String(newGoal));
+    if (consumed > 0) {
+      localStorage.setItem('nv_water_detail', `${Math.round((consumed / newGoal) * 100)}% goal`);
+    }
+    setStatusMsg(`Daily goal updated to ${newGoal} ml.`);
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  const handleDeleteHistory = (indexToDelete: number) => {
+    setErrorMsg(null);
+    const target = history[indexToDelete];
+    if (!target) return;
+    const nextHistory = history.filter((_, idx) => idx !== indexToDelete);
+    const nextConsumed = Math.max(0, consumed - target.amount);
+    const today = getTodayDateString();
+
+    setConsumed(nextConsumed);
+    setHistory(nextHistory);
+    setStatusMsg(`Removed ${target.amount} ml entry.`);
+
+    localStorage.setItem('nv_water_consumed', String(nextConsumed));
+    localStorage.setItem('nv_water_goal', String(goal));
+    localStorage.setItem('nv_water_date', today);
+    localStorage.setItem('nv_water_history', JSON.stringify(nextHistory));
+    localStorage.setItem('nv_water_intake', `${(nextConsumed / 1000).toFixed(1)} L`);
+    localStorage.setItem('nv_water_detail', `${Math.round((nextConsumed / goal) * 100)}% goal`);
+
+    window.dispatchEvent(new Event('storage'));
   };
 
   const resetIntake = () => {
     const today = getTodayDateString();
     setConsumed(0);
     setHistory([]);
+    setErrorMsg(null);
+    setStatusMsg('Daily intake reset to 0 ml.');
+
     localStorage.setItem('nv_water_consumed', '0');
     localStorage.setItem('nv_water_goal', String(goal));
     localStorage.setItem('nv_water_date', today);
     localStorage.setItem('nv_water_history', JSON.stringify([]));
     localStorage.setItem('nv_water_intake', '0.0 L');
     localStorage.setItem('nv_water_detail', '0% goal');
+
+    window.dispatchEvent(new Event('storage'));
   };
+
   const [hydrationAdvice, setHydrationAdvice] = useState<string | null>(null);
   const [hydrationLoading, setHydrationLoading] = useState(false);
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[32px] border border-white/10 bg-slate-950/80 p-8 shadow-[0_30px_70px_-40px_rgba(5,12,31,0.9)] backdrop-blur-xl">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      {/* Header Banner Card */}
+      <div className="rounded-[32px] border border-slate-200/80 bg-white/90 p-8 shadow-[0_30px_70px_-40px_rgba(5,12,31,0.06)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/80 dark:shadow-[0_30px_70px_-40px_rgba(5,12,31,0.9)]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-sky-300/70">Water Intake Tracker</p>
-            <h1 className="mt-3 text-3xl font-semibold text-white">Hit your hydration goal.</h1>
+            <p className="text-sm uppercase tracking-[0.3em] text-sky-600 dark:text-sky-300/70">Water Intake Tracker</p>
+            <h1 className="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">Hit your hydration goal.</h1>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <button onClick={addGlass} className="inline-flex items-center justify-center rounded-full bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={addGlass}
+              className="inline-flex items-center justify-center rounded-full bg-cyan-500 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+            >
               Add 250ml
             </button>
-            <button onClick={resetIntake} className="inline-flex items-center justify-center rounded-full bg-slate-700 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-600">
+            <button
+              type="button"
+              onClick={() => handleAddWater(500, 'Added 500ml')}
+              className="inline-flex items-center justify-center rounded-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-sm font-semibold text-cyan-700 dark:text-cyan-300 transition hover:bg-cyan-500/20"
+            >
+              +500ml
+            </button>
+            <button
+              type="button"
+              onClick={resetIntake}
+              className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-white/10 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            >
               Reset
             </button>
           </div>
         </div>
 
-        <div className="mt-8 rounded-[32px] border border-white/10 bg-white/5 p-6">
+        {/* Status / Alert notifications */}
+        {statusMsg && (
+          <div role="status" className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
+            {statusMsg}
+          </div>
+        )}
+        {errorMsg && (
+          <div role="alert" className="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-700 dark:text-rose-300">
+            {errorMsg}
+          </div>
+        )}
+
+        {/* Progress summary panel */}
+        <div className="mt-8 rounded-[32px] border border-slate-200/70 bg-slate-50/80 p-6 dark:border-white/10 dark:bg-white/5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Daily goal</p>
-              <p className="mt-2 text-3xl font-semibold text-white">{goal} ml</p>
+              <p className="text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Daily goal</p>
+              <p className="mt-2 text-3xl font-semibold text-slate-900 dark:text-white">{goal} ml</p>
             </div>
-            <div className="rounded-3xl bg-slate-950/80 px-4 py-3 text-sm text-slate-300">{progress}%</div>
+            <div className="rounded-2xl border border-slate-200/60 bg-white/90 px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm dark:border-white/10 dark:bg-slate-950/80 dark:text-slate-300">
+              {progress}%
+            </div>
           </div>
-          <div className="mt-6 h-4 overflow-hidden rounded-full bg-white/10">
-            <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-400 shadow-[0_0_20px_rgba(56,189,248,0.35)]" style={{ width: `${progress}%` }} />
+          <div className="mt-6 h-4 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+            <div
+              role="progressbar"
+              aria-valuenow={consumed}
+              aria-valuemin={0}
+              aria-valuemax={goal}
+              aria-label="Daily water intake progress"
+              className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 shadow-[0_0_20px_rgba(56,189,248,0.35)] transition-all duration-300"
+              style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+            />
           </div>
-          <p className="mt-4 text-sm text-slate-400">{consumed} ml consumed so far. Keep it steady to maintain focus and recovery.</p>
+          <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
+            {consumed} ml consumed so far. Keep it steady to maintain focus and recovery.
+          </p>
+        </div>
+
+        {/* Configuration Row: Custom Log & Goal Setup */}
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          {/* Custom Intake Input */}
+          <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-white/5 dark:bg-slate-900/60">
+            <label htmlFor="custom-water-amount" className="block text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 font-medium">
+              Log custom amount (ml)
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="custom-water-amount"
+                type="number"
+                min="10"
+                max="5000"
+                step="10"
+                value={customAmount}
+                placeholder="e.g. 350"
+                onChange={(e) => {
+                  setCustomAmount(e.target.value);
+                  setErrorMsg(null);
+                }}
+                className="w-full rounded-2xl border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 dark:border-white/10 dark:bg-slate-950/90 dark:text-white dark:focus:border-cyan-400"
+              />
+              <button
+                type="button"
+                onClick={handleCustomAdd}
+                className="rounded-2xl bg-cyan-500 px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-cyan-400 transition whitespace-nowrap"
+              >
+                Log intake
+              </button>
+            </div>
+          </div>
+
+          {/* Goal Config Input */}
+          <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-4 dark:border-white/5 dark:bg-slate-900/60">
+            <label htmlFor="water-goal-input" className="block text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 font-medium">
+              Configure daily goal (ml)
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="water-goal-input"
+                type="number"
+                min="500"
+                max="10000"
+                step="50"
+                value={goalInput}
+                placeholder="e.g. 2500"
+                onChange={(e) => {
+                  setGoalInput(e.target.value);
+                  setErrorMsg(null);
+                }}
+                className="w-full rounded-2xl border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 outline-none transition focus:border-cyan-500 dark:border-white/10 dark:bg-slate-950/90 dark:text-white dark:focus:border-cyan-400"
+              />
+              <button
+                type="button"
+                onClick={handleSetGoal}
+                className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition whitespace-nowrap"
+              >
+                Set goal
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
+      {/* AI Hydration Tip */}
       <div className="mt-4">
-        <button onClick={async () => { setHydrationLoading(true); setHydrationAdvice(null); try { const r = await hydrationRecommendation(goal, consumed); setHydrationAdvice(r); } catch { setHydrationAdvice('Failed to get advice'); } finally { setHydrationLoading(false); } }} className="rounded-3xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950">{hydrationLoading ? 'Loading...' : 'AI Hydration Tip'}</button>
-        {hydrationAdvice && <div className="mt-3 rounded-2xl bg-white/5 p-3 text-sm text-slate-300"><div className="whitespace-pre-wrap break-words">{sanitizeAIText(hydrationAdvice)}</div></div>}
+        <button
+          type="button"
+          onClick={async () => {
+            setHydrationLoading(true);
+            setHydrationAdvice(null);
+            try {
+              const r = await hydrationRecommendation(goal, consumed);
+              setHydrationAdvice(r);
+            } catch {
+              setHydrationAdvice('Hydration advice service is temporarily unavailable.');
+            } finally {
+              setHydrationLoading(false);
+            }
+          }}
+          disabled={hydrationLoading}
+          className="rounded-full bg-cyan-500 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-50"
+        >
+          {hydrationLoading ? 'Loading advice...' : 'AI Hydration Tip'}
+        </button>
+        {hydrationAdvice && (
+          <div className="mt-3 rounded-2xl border border-slate-200/60 bg-white/90 p-4 text-sm text-slate-700 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+            <div className="whitespace-pre-wrap break-words">{sanitizeAIText(hydrationAdvice)}</div>
+          </div>
+        )}
       </div>
 
+      {/* Bottom Panels: History & Indicators */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
-          <h2 className="text-lg font-semibold text-white">Daily tracking history</h2>
-          <div className="mt-5 space-y-3 text-sm text-slate-300">
-            {history.map((item, index) => (
-              <div key={index} className="flex items-center justify-between rounded-3xl bg-slate-950/80 px-4 py-3">
-                <span>{item.label}</span>
-                <span>{item.amount} ml</span>
-              </div>
-            ))}
+        {/* Daily History List */}
+        <div className="rounded-[32px] border border-slate-200/80 bg-white/90 p-6 shadow-sm dark:border-white/10 dark:bg-white/5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">Daily tracking history</h2>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Today</span>
           </div>
+
+          {history.length === 0 ? (
+            <div className="mt-6 py-8 text-center text-slate-500 dark:text-slate-400">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No water logged today</p>
+              <p className="mt-1 text-xs">Add a glass or custom amount above to start recording your daily intake.</p>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-2.5 max-h-64 overflow-y-auto pr-1">
+              {history.map((item, index) => (
+                <div
+                  key={`${item.time || ''}-${index}-${item.amount}`}
+                  className="flex items-center justify-between rounded-2xl border border-slate-200/60 bg-slate-50/80 px-4 py-2.5 text-sm dark:border-white/5 dark:bg-slate-950/80"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-slate-700 dark:text-slate-300">{item.label}</span>
+                    {item.time && <span className="text-xs text-slate-400">({item.time})</span>}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-slate-900 dark:text-white">{item.amount} ml</span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteHistory(index)}
+                      className="rounded-lg p-1 text-slate-400 hover:bg-rose-500/10 hover:text-rose-500 transition"
+                      aria-label={`Delete ${item.amount} ml entry`}
+                    >
+                      <FiTrash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="rounded-[32px] border border-white/10 bg-slate-950/80 p-6">
-          <h2 className="text-lg font-semibold text-white">Progress indicators</h2>
-          <div className="mt-5 space-y-4 text-sm text-slate-300">
+        {/* Progress Indicators Breakdown */}
+        <div className="rounded-[32px] border border-slate-200/80 bg-white/90 p-6 shadow-sm dark:border-white/10 dark:bg-slate-950/80">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-white">Progress indicators</h2>
+          <div className="mt-5 space-y-4 text-sm text-slate-600 dark:text-slate-300">
             {(() => {
-              const morningGoal = 500;
-              const preMealGoal = 400;
-              const eveningGoal = 500;
+              const morningGoal = Math.round(goal * 0.25);
+              const preMealGoal = Math.round(goal * 0.35);
+              const eveningGoal = Math.round(goal * 0.4);
               const morningAmt = Math.min(consumed, morningGoal);
               const preMealAmt = Math.max(0, Math.min(consumed - morningGoal, preMealGoal));
               const eveningAmt = Math.max(0, consumed - morningGoal - preMealGoal);
-              const morningPct = Math.round((morningAmt / morningGoal) * 100);
-              const preMealPct = Math.round((preMealAmt / preMealGoal) * 100);
-              const eveningPct = Math.round((eveningAmt / eveningGoal) * 100);
+              const morningPct = morningGoal > 0 ? Math.round((morningAmt / morningGoal) * 100) : 0;
+              const preMealPct = preMealGoal > 0 ? Math.round((preMealAmt / preMealGoal) * 100) : 0;
+              const eveningPct = eveningGoal > 0 ? Math.round((eveningAmt / eveningGoal) * 100) : 0;
               return [
                 { label: 'Morning hydration', value: morningPct },
-                { label: 'Pre-meal water', value: preMealPct },
-                { label: 'Evening water', value: eveningPct },
+                { label: 'Mid-day & Pre-meal', value: preMealPct },
+                { label: 'Evening hydration', value: eveningPct },
               ].map((item) => (
-                <div key={item.label}>
-                  <div className="flex items-center justify-between text-sm text-slate-400">
-                    <span>{item.label}</span>
-                    <span>{item.value}%</span>
+                <div key={item.label} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600 dark:text-slate-400">{item.label}</span>
+                    <span className="font-medium text-slate-900 dark:text-white">{item.value}%</span>
                   </div>
-                  <div className="mt-2 h-2 rounded-full bg-white/10">
-                    <div className="h-full rounded-full bg-cyan-400" style={{ width: `${item.value}%` }} />
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                    <div
+                      role="progressbar"
+                      aria-valuenow={item.value}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label={item.label}
+                      className="h-full rounded-full bg-cyan-400 transition-all duration-300"
+                      style={{ width: `${Math.min(100, Math.max(0, item.value))}%` }}
+                    />
                   </div>
                 </div>
               ));
