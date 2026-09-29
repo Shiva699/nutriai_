@@ -89,7 +89,8 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
       fitnessGoal: 'Stay fit',
     };
     localStorage.setItem('nv_user_profile', JSON.stringify(profile));
-    // Hydration complete (100%), but no diet plan yet (0%) -> average is 50%
+    // Configured diet goal (pending meal plan = 0%) and hydration complete (100%) -> average is 50%
+    localStorage.setItem('nv_diet_goal', 'Stay fit');
     localStorage.setItem('nv_water_consumed', '2000');
     localStorage.setItem('nv_water_goal', '2000');
     localStorage.setItem('nv_water_date', 'Today');
@@ -558,7 +559,7 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
       expect(screen.getByText('Complete your profile to get started.')).toBeInTheDocument();
     });
 
-    it('profile with only hydration complete calculates 50% completed (nutrition target pending)', () => {
+    it('profile with only hydration complete calculates 50% completed when diet goal is configured', () => {
       const profile = {
         fullName: 'Alex Health',
         email: 'alex@example.com',
@@ -569,6 +570,7 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
         fitnessGoal: 'Build muscle',
       };
       localStorage.setItem('nv_user_profile', JSON.stringify(profile));
+      localStorage.setItem('nv_diet_goal', 'Build muscle');
       localStorage.setItem('nv_water_consumed', '2000');
       localStorage.setItem('nv_water_goal', '2000');
       localStorage.setItem('nv_water_date', 'Today');
@@ -669,9 +671,120 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
 
       render(<DashboardOverview />);
 
-      // Diet plan is 100%, but today's water is 0% -> average is 50%
-      expect(screen.getByText('50% completed')).toBeInTheDocument();
-      expect(screen.getByText('50% of your active daily targets achieved.')).toBeInTheDocument();
+      // Only today's active diet plan counts -> 100%
+      expect(screen.getByText('100% completed')).toBeInTheDocument();
+      expect(screen.getByText('All active health and nutrition targets on track!')).toBeInTheDocument();
+    });
+
+    it('TEST A: profile with height only does NOT activate goal completion', () => {
+      localStorage.setItem('nv_user_profile', JSON.stringify({ height: '175' }));
+      render(<DashboardOverview />);
+
+      expect(screen.getByRole('heading', { level: 2, name: 'No data yet' })).toBeInTheDocument();
+      expect(screen.getByText('Complete your profile to get started.')).toBeInTheDocument();
+      expect(screen.queryByText(/% completed/)).not.toBeInTheDocument();
+    });
+
+    it('TEST B: profile with current weight only does NOT activate goal completion', () => {
+      localStorage.setItem('nv_user_profile', JSON.stringify({ weight: '70' }));
+      render(<DashboardOverview />);
+
+      expect(screen.getByRole('heading', { level: 2, name: 'No data yet' })).toBeInTheDocument();
+      expect(screen.getByText('Complete your profile to get started.')).toBeInTheDocument();
+      expect(screen.queryByText(/% completed/)).not.toBeInTheDocument();
+    });
+
+    it('TEST C: profile with height and current weight but no fitness goal does NOT activate goal completion', () => {
+      localStorage.setItem(
+        'nv_user_profile',
+        JSON.stringify({ height: '175', weight: '70', fitnessGoal: '' })
+      );
+      render(<DashboardOverview />);
+
+      expect(screen.getByRole('heading', { level: 2, name: 'No data yet' })).toBeInTheDocument();
+      expect(screen.getByText('Complete your profile to get started.')).toBeInTheDocument();
+      expect(screen.queryByText(/% completed/)).not.toBeInTheDocument();
+    });
+
+    it('TEST D: hydration goal only: only hydration is considered and no fake nutrition 0% is added', () => {
+      const profile = {
+        fullName: 'Alex Health',
+        email: 'alex@example.com',
+        fitnessGoal: 'Stay hydrated',
+      };
+      localStorage.setItem('nv_user_profile', JSON.stringify(profile));
+      localStorage.setItem('nv_water_consumed', '2000');
+      localStorage.setItem('nv_water_goal', '2000');
+      localStorage.setItem('nv_water_date', 'Today');
+
+      render(<DashboardOverview />);
+
+      // Only hydration is considered -> 100%, NOT 50% from an imaginary nutrition goal
+      expect(screen.getByText('100% completed')).toBeInTheDocument();
+      expect(screen.getByText('All active health and nutrition targets on track!')).toBeInTheDocument();
+    });
+
+    it('TEST E: weight target only: only weight target contributes', () => {
+      localStorage.setItem('nv_goal_weight', '70.0');
+      localStorage.setItem('nv_weight_history', JSON.stringify([{ date: 'Today', weight: 70.2 }]));
+
+      render(<DashboardOverview />);
+
+      expect(screen.getByText('100% completed')).toBeInTheDocument();
+      expect(screen.getByText('All active health and nutrition targets on track!')).toBeInTheDocument();
+    });
+
+    it('TEST F: diet goal/plan only: only nutrition goal contributes', () => {
+      localStorage.setItem('nv_diet_plan', 'Day 1\nBreakfast: Oatmeal');
+
+      render(<DashboardOverview />);
+
+      expect(screen.getByText('100% completed')).toBeInTheDocument();
+      expect(screen.getByText('All active health and nutrition targets on track!')).toBeInTheDocument();
+    });
+
+    it('TEST G: multiple configured goals average only configured categories', () => {
+      const profile = {
+        fullName: 'Alex Health',
+        fitnessGoal: 'Maintain weight',
+      };
+      localStorage.setItem('nv_user_profile', JSON.stringify(profile));
+      localStorage.setItem('nv_water_consumed', '2000');
+      localStorage.setItem('nv_water_goal', '2000');
+      localStorage.setItem('nv_water_date', 'Today');
+      // Weight target: 70kg, current: 60kg. diff = 10kg -> 1 - 10/70 = 85.7% -> 86%
+      localStorage.setItem('nv_goal_weight', '70');
+      localStorage.setItem('nv_weight_history', JSON.stringify([{ date: 'Today', weight: 60 }]));
+
+      render(<DashboardOverview />);
+
+      // Average of (100 + 86) / 2 = 93%
+      expect(screen.getByText('93% completed')).toBeInTheDocument();
+      expect(screen.getByText('93% of your active daily targets achieved.')).toBeInTheDocument();
+    });
+
+    it('TEST H: missing/unconfigured goals are NOT counted as 0% to lower the average', () => {
+      localStorage.setItem('nv_goal_weight', '70');
+      localStorage.setItem('nv_weight_history', JSON.stringify([{ date: 'Today', weight: 60 }]));
+
+      render(<DashboardOverview />);
+
+      // Score is 86%, NOT 86/3 = 29% from fake nutrition and water 0%
+      expect(screen.getByText('86% completed')).toBeInTheDocument();
+      expect(screen.getByText('86% of your active daily targets achieved.')).toBeInTheDocument();
+    });
+
+    it('TEST I: result remains clamped between 0% and 100%', () => {
+      localStorage.setItem('nv_diet_plan', 'Day 1\nBreakfast: Oats');
+      localStorage.setItem('nv_water_consumed', '5000');
+      localStorage.setItem('nv_water_goal', '2000');
+      localStorage.setItem('nv_water_date', 'Today');
+
+      render(<DashboardOverview />);
+
+      expect(screen.getByText('100% completed')).toBeInTheDocument();
+      expect(screen.queryByText('250% completed')).not.toBeInTheDocument();
+      expect(screen.queryByText(/2[0-9]{2}%/)).not.toBeInTheDocument();
     });
 
     it('safely handles malformed and invalid nv_goal_weight without crashing or NaN', () => {

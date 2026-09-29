@@ -575,19 +575,15 @@ export function DashboardOverview() {
     let compPct = 0;
     let compDetail = 'Complete your profile to get started.';
 
-    const hasProfileGoal = Boolean(
-      userProfile && (
-        (typeof userProfile.fitnessGoal === 'string' && userProfile.fitnessGoal.trim().length > 0) ||
-        isValidNum(userProfile.weight) ||
-        isValidNum(userProfile.height)
-      )
-    );
+    const fitnessGoalStr = userProfile?.fitnessGoal?.trim();
+    const hasFitnessGoal = Boolean(fitnessGoalStr && fitnessGoalStr.length > 0);
+
     const rawDietGoal = localStorage.getItem('nv_diet_goal');
     const rawDietPlan = localStorage.getItem('nv_diet_plan');
-    const hasDietGoal = Boolean(
-      (typeof rawDietGoal === 'string' && rawDietGoal.trim().length > 0) ||
-      (typeof rawDietPlan === 'string' && rawDietPlan.trim().length > 0)
-    );
+    const hasMealPlan = Boolean(typeof rawDietPlan === 'string' && rawDietPlan.trim().length > 0);
+    const hasDietGoalConfigured = Boolean(typeof rawDietGoal === 'string' && rawDietGoal.trim().length > 0);
+    const hasNutritionGoal = hasMealPlan || hasDietGoalConfigured;
+
     const rawGoalWeight = localStorage.getItem('nv_goal_weight');
     const hasWeightGoal = Boolean(
       rawGoalWeight &&
@@ -599,29 +595,37 @@ export function DashboardOverview() {
       weightVal > 0
     );
 
-    const hasOverallGoal = hasProfileGoal || hasDietGoal || hasWeightGoal;
+    const hasHydrationGoal = Boolean(
+      waterConsumedVal !== null &&
+      waterGoalVal !== null &&
+      waterGoalVal > 0
+    );
 
-    if (!hasOverallGoal) {
+    // Goal Completion is active only when at least one genuine goal category is configured.
+    // Height and current weight are biometric measurements and do NOT activate goal tracking.
+    // Water alone without any configured health/profile goal does not activate overall Goal Completion.
+    const hasActiveGoalSetup = hasFitnessGoal || hasNutritionGoal || hasWeightGoal;
+
+    if (!hasActiveGoalSetup) {
       compText = 'No data yet';
       compPct = 0;
       compDetail = 'Complete your profile to get started.';
     } else {
       const goals: number[] = [];
 
-      // Nutrition goal: active if diet plan generated
-      const hasMealPlan = Boolean(typeof rawDietPlan === 'string' && rawDietPlan.trim().length > 0);
-      goals.push(hasMealPlan ? 100 : 0);
+      // 1. Nutrition Goal: included ONLY when genuinely configured
+      if (hasNutritionGoal) {
+        goals.push(hasMealPlan ? 100 : 0);
+      }
 
-      // Hydration goal: tracked if water was logged for today
-      if (waterConsumedVal !== null && waterGoalVal !== null && waterGoalVal > 0) {
+      // 2. Hydration Goal: included ONLY when water is tracked/configured
+      if (hasHydrationGoal && waterConsumedVal !== null && waterGoalVal !== null && waterGoalVal > 0) {
         const rawWaterPct = Math.round((waterConsumedVal / waterGoalVal) * 100);
         const waterPct = Math.min(100, Math.max(0, isNaN(rawWaterPct) || !isFinite(rawWaterPct) ? 0 : rawWaterPct));
         goals.push(waterPct);
-      } else {
-        goals.push(0);
       }
 
-      // Weight goal: included if user set a goal weight and has a recorded current weight
+      // 3. Weight Goal: included ONLY when target weight is configured
       if (hasWeightGoal && rawGoalWeight && weightVal !== null) {
         const targetW = Number(rawGoalWeight.trim());
         if (!isNaN(targetW) && isFinite(targetW) && targetW > 0) {
@@ -634,9 +638,15 @@ export function DashboardOverview() {
       }
 
       if (goals.length === 0) {
-        compText = 'No data yet';
-        compPct = 0;
-        compDetail = 'Complete your profile to get started.';
+        if (hasFitnessGoal) {
+          compText = 'Profile active';
+          compPct = 0;
+          compDetail = 'Track daily water and meals to measure goal completion.';
+        } else {
+          compText = 'No data yet';
+          compPct = 0;
+          compDetail = 'Complete your profile to get started.';
+        }
       } else {
         const validGoals = goals.filter((g) => typeof g === 'number' && !isNaN(g) && isFinite(g));
         const sum = validGoals.reduce((acc, v) => acc + Math.min(100, Math.max(0, v)), 0);
