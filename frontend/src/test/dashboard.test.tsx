@@ -260,4 +260,119 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
       expect(screen.getByText('-')).toBeInTheDocument();
     });
   });
+
+  describe('Dashboard Weekly Progress - Genuine Data & Edge Cases Suite', () => {
+    it('displays clean no-data state when no weight history exists', () => {
+      render(<DashboardOverview />);
+
+      // Value is '--'
+      const weeklyProgressHeadings = screen.getAllByRole('heading', { level: 2 });
+      const weeklyHeading = weeklyProgressHeadings.find(h => h.textContent === '--');
+      expect(weeklyHeading).toBeDefined();
+
+      // Subtitle/status and helpful message
+      expect(screen.getByText('Log entries in Weight Tracker to see weekly progress.')).toBeInTheDocument();
+      expect(screen.getAllByText('No data yet').length).toBeGreaterThanOrEqual(1);
+
+      // No fake numbers or trend text
+      expect(screen.queryByText('+1.6 kg gain')).not.toBeInTheDocument();
+      expect(screen.queryByText('Stable progress')).not.toBeInTheDocument();
+    });
+
+    it('correctly handles single entry: shows logged weight clearly without asserting misleading weekly delta', () => {
+      const singleEntry = [{ date: 'Today', weight: 74.2 }];
+      localStorage.setItem('nv_weight_history', JSON.stringify(singleEntry));
+
+      render(<DashboardOverview />);
+
+      // Single weight is shown clearly
+      expect(screen.getAllByText('74.2 kg').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByText('Single entry recorded')).toBeInTheDocument();
+      expect(screen.getByText('Log another entry this week to calculate progress.')).toBeInTheDocument();
+
+      // Does NOT assert misleading delta/trend
+      expect(screen.queryByText('+0.0 kg')).not.toBeInTheDocument();
+      expect(screen.queryByText('+0.0 kg gain')).not.toBeInTheDocument();
+      expect(screen.queryByText('0.0 kg loss')).not.toBeInTheDocument();
+      expect(screen.queryByText('stable progress')).not.toBeInTheDocument();
+    });
+
+    it('calculates weekly change accurately for 2+ genuine entries', () => {
+      const history = [
+        { date: 'Today', weight: 71.0 },
+        { date: '3 days ago', weight: 72.0 },
+        { date: '7 days ago', weight: 73.5 },
+      ];
+      localStorage.setItem('nv_weight_history', JSON.stringify(history));
+
+      render(<DashboardOverview />);
+
+      // 71.0 - 73.5 = -2.5 kg loss
+      expect(screen.getByText('-2.5 kg loss')).toBeInTheDocument();
+      expect(screen.getByText('Weekly change')).toBeInTheDocument();
+      expect(screen.getAllByText('Today').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('3 days ago')).toBeInTheDocument();
+      expect(screen.getByText('7 days ago')).toBeInTheDocument();
+      expect(screen.queryByText('Log another entry this week to calculate progress.')).not.toBeInTheDocument();
+    });
+
+    it('handles zero weight change accurately without misleading gain/loss label', () => {
+      const history = [
+        { date: 'Today', weight: 70.0 },
+        { date: '7 days ago', weight: 70.0 },
+      ];
+      localStorage.setItem('nv_weight_history', JSON.stringify(history));
+
+      render(<DashboardOverview />);
+
+      expect(screen.getByText('0.0 kg change')).toBeInTheDocument();
+      expect(screen.getByText('Weekly change')).toBeInTheDocument();
+    });
+
+    it('gracefully handles malformed JSON in localStorage without crashing', () => {
+      localStorage.setItem('nv_weight_history', '{invalid-json');
+
+      expect(() => render(<DashboardOverview />)).not.toThrow();
+      expect(screen.getByText('Log entries in Weight Tracker to see weekly progress.')).toBeInTheDocument();
+    });
+
+    it('filters out corrupted elements and retains only genuine entries', () => {
+      const corrupted = [
+        null,
+        { foo: 'bar' },
+        { date: 'Today', weight: 'invalid' },
+        { date: 'Today', weight: -70 },
+        { date: 'Today', weight: 76.5 },
+      ];
+      localStorage.setItem('nv_weight_history', JSON.stringify(corrupted));
+
+      render(<DashboardOverview />);
+
+      // Only 76.5 kg is valid -> treated as single valid entry
+      expect(screen.getAllByText('76.5 kg').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByText('Single entry recorded')).toBeInTheDocument();
+      expect(screen.queryByText('invalid')).not.toBeInTheDocument();
+    });
+
+    it('rejects demo mock fallback data when mixed with genuine data', () => {
+      const withDemo = [
+        { date: 'Today', weight: 75.0 },
+        { date: 'Jun 16', weight: 71.8 },
+        { date: 'Jun 18', weight: 72.0 },
+        { date: 'Jun 20', weight: 72.1 },
+        { date: 'Jun 22', weight: 72.4 },
+      ];
+      localStorage.setItem('nv_weight_history', JSON.stringify(withDemo));
+
+      render(<DashboardOverview />);
+
+      // Only the 1 genuine entry should be kept, demo fallback entries filtered out
+      expect(screen.getAllByText('75.0 kg').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByText('Single entry recorded')).toBeInTheDocument();
+      // Should not calculate delta against Jun 22 (72.4)
+      expect(screen.queryByText('+2.6 kg gain')).not.toBeInTheDocument();
+      expect(screen.queryByText('Jun 16')).not.toBeInTheDocument();
+      expect(screen.queryByText('Jun 22')).not.toBeInTheDocument();
+    });
+  });
 });

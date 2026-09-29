@@ -92,14 +92,30 @@ function getValidWeightHistory(): { date: string; weight: number }[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0) return [];
-    if (
-      parsed.length === 4 &&
-      parsed[0]?.date === 'Jun 16' && parsed[0]?.weight === 71.8 &&
-      parsed[3]?.date === 'Jun 22' && parsed[3]?.weight === 72.4
-    ) {
-      return [];
+
+    const isDemoItem = (date: string, weight: number): boolean => {
+      return (
+        (date === 'Jun 16' && weight === 71.8) ||
+        (date === 'Jun 18' && weight === 72.0) ||
+        (date === 'Jun 20' && weight === 72.1) ||
+        (date === 'Jun 22' && weight === 72.4)
+      );
+    };
+
+    const valid: { date: string; weight: number }[] = [];
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue;
+      const w = typeof item.weight === 'number' ? item.weight : Number(item.weight);
+      if (typeof w === 'number' && !isNaN(w) && isFinite(w) && w > 0 && w < 500) {
+        const d = typeof item.date === 'string' && item.date.trim() ? item.date.trim() : 'Recorded';
+        const numWeight = Number(w.toFixed(1));
+        if (!isDemoItem(d, numWeight)) {
+          valid.push({ date: d, weight: numWeight });
+        }
+      }
     }
-    return parsed;
+
+    return valid;
   } catch {
     return [];
   }
@@ -138,6 +154,7 @@ export function DashboardOverview() {
     goalCompletionPct,
     goalCompletionDetail,
     weeklyProgressText,
+    weeklyProgressStatus,
     validHistory,
     hydrationText,
     hydrationPct,
@@ -287,11 +304,20 @@ export function DashboardOverview() {
 
     // 8. Weekly progress
     let wpText = '--';
+    let wpStatus: string | null = null;
     if (history.length >= 2 && typeof history[0]?.weight === 'number' && typeof history[history.length - 1]?.weight === 'number') {
       const diff = history[0].weight - history[history.length - 1].weight;
-      wpText = `${diff >= 0 ? '+' : ''}${diff.toFixed(1)} kg ${diff >= 0 ? 'gain' : 'loss'}`;
+      if (diff > 0) {
+        wpText = `+${diff.toFixed(1)} kg gain`;
+      } else if (diff < 0) {
+        wpText = `${diff.toFixed(1)} kg loss`;
+      } else {
+        wpText = `0.0 kg change`;
+      }
+      wpStatus = 'Weekly change';
     } else if (history.length === 1 && typeof history[0]?.weight === 'number') {
       wpText = `${history[0].weight.toFixed(1)} kg`;
+      wpStatus = 'Single entry recorded';
     }
 
     // 9. Hydration profile
@@ -348,6 +374,7 @@ export function DashboardOverview() {
       goalCompletionPct: compPct,
       goalCompletionDetail: compDetail,
       weeklyProgressText: wpText,
+      weeklyProgressStatus: wpStatus,
       validHistory: history,
       hydrationText: hydText,
       hydrationPct: hydPct,
@@ -506,6 +533,9 @@ export function DashboardOverview() {
             <div>
               <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Weekly progress</p>
               <h2 className="mt-3 text-xl font-semibold text-white">{weeklyProgressText}</h2>
+              {validHistory.length > 0 && weeklyProgressStatus && (
+                <p className="mt-1 text-xs text-slate-400">{weeklyProgressStatus}</p>
+              )}
             </div>
             <FiTrendingUp className="h-6 w-6 text-emerald-300" />
           </div>
@@ -517,11 +547,14 @@ export function DashboardOverview() {
                   <span>{typeof item.weight === 'number' ? `${item.weight.toFixed(1)} kg` : item.weight}</span>
                 </div>
               ))}
+              {validHistory.length === 1 && (
+                <p className="pt-2 text-xs text-slate-500">Log another entry this week to calculate progress.</p>
+              )}
             </div>
           ) : (
             <div className="mt-6 flex flex-col items-center justify-center py-6 text-center">
               <p className="text-sm text-slate-400">No data yet</p>
-              <p className="mt-1 text-xs text-slate-500">Log entries in Weight Tracker to see weekly trends.</p>
+              <p className="mt-1 text-xs text-slate-500">Log entries in Weight Tracker to see weekly progress.</p>
             </div>
           )}
         </motion.div>
