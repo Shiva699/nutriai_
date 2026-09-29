@@ -82,8 +82,6 @@ const DEFAULT_MEAL_IMAGE: Record<MealType, string> = {
 };
 
 export function parseDietPlanResponse(raw: string): ParsedDay[] {
-  console.log("RAW RESPONSE:", raw);
-
   if (!raw || typeof raw !== 'string') {
     return [fallbackDay('Plan', 'No response')];
   }
@@ -177,9 +175,6 @@ export function parseDietPlanResponse(raw: string): ParsedDay[] {
   }
 
   pushDay();
-
-  console.log("TOTAL DAYS FOUND:", days.length);
-  console.log(days);
 
   return days.length ? days : [fallbackDay('Plan', raw)];
 }

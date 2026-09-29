@@ -110,18 +110,18 @@ describe('Frontend React Components', () => {
   });
 
   describe('DietPlannerPage Component', () => {
-    it('disables submit button and shows error when age is invalid (e.g., 999)', () => {
+    it('disables submit button on fresh load (no defaults) and shows error when age is out of range', () => {
       render(<DietPlannerPage />);
       const ageInput = screen.getByLabelText(/Age/i);
       const submitBtn = screen.getByRole('button', { name: /Generate AI Diet Plan/i });
 
-      // Default values are valid, so button starts enabled
-      expect(submitBtn).toBeEnabled();
+      // Fresh load — no saved data. All numeric fields are empty/undefined, so button should start disabled.
+      expect(submitBtn).toBeDisabled();
 
-      // Enter out-of-range age (999)
+      // Enter out-of-range age (999 > 120)
       fireEvent.change(ageInput, { target: { value: '999' } });
 
-      expect(screen.getByText(/Please enter an age between 18 and 80/i)).toBeInTheDocument();
+      expect(screen.getByText(/Please enter an age between 13 and 120/i)).toBeInTheDocument();
       expect(submitBtn).toBeDisabled();
     });
 
@@ -132,6 +132,7 @@ describe('Frontend React Components', () => {
       const weightInput = screen.getByLabelText(/Weight \(kg\)/i);
       const submitBtn = screen.getByRole('button', { name: /Generate AI Diet Plan/i });
 
+      // Fill in all required fields within valid ranges
       fireEvent.change(ageInput, { target: { value: '25' } });
       fireEvent.change(heightInput, { target: { value: '175' } });
       fireEvent.change(weightInput, { target: { value: '70' } });
@@ -141,9 +142,14 @@ describe('Frontend React Components', () => {
 
     it('disables submit button when height or weight are out of range', () => {
       render(<DietPlannerPage />);
+      const ageInput = screen.getByLabelText(/Age/i);
       const heightInput = screen.getByLabelText(/Height \(cm\)/i);
       const weightInput = screen.getByLabelText(/Weight \(kg\)/i);
       const submitBtn = screen.getByRole('button', { name: /Generate AI Diet Plan/i });
+
+      // First set age to valid so button enablement only depends on height/weight
+      fireEvent.change(ageInput, { target: { value: '25' } });
+      fireEvent.change(weightInput, { target: { value: '70' } });
 
       // Out of range height (120 < 140)
       fireEvent.change(heightInput, { target: { value: '120' } });

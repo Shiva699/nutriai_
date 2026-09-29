@@ -64,9 +64,9 @@ function StatCard({
     <Card className="h-full min-h-[124px]">
       <div className="flex h-full items-center justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-400">{label}</p>
-          <p className="mt-3 text-3xl font-semibold text-white">{value}</p>
-          <p className="mt-2 text-sm text-slate-400">{detail}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">{label}</p>
+          <p className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">{value}</p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{detail}</p>
         </div>
         {typeof ring === 'number' && (
           <div className="shrink-0 w-20">
@@ -134,7 +134,7 @@ export default function DietPlanRenderer({
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-[32px] border border-white/10 bg-slate-950/80 shadow-[0_30px_70px_-40px_rgba(5,12,31,0.9)] backdrop-blur-xl">
+      <section className="overflow-hidden rounded-[32px] border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-slate-950/80 shadow-[0_20px_50px_-30px_rgba(0,0,0,0.07)] dark:shadow-[0_30px_70px_-40px_rgba(5,12,31,0.9)] backdrop-blur-xl">
         <div className="relative min-h-[250px] bg-[url('https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=1600&q=80')] bg-cover bg-center">
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/70 to-slate-950/30" />
           <div className="relative flex min-h-[250px] flex-col justify-between gap-6 p-6 sm:p-8">
@@ -180,7 +180,7 @@ export default function DietPlanRenderer({
         <StatCard label="Fat" value={formatStatValue(totals.fat, 'g')} detail="Parsed from the AI response" />
       </div>
 
-      <div className="rounded-[28px] border border-white/10 bg-white/5 p-4 sm:p-5">
+      <div className="rounded-[28px] border border-slate-200/80 dark:border-white/10 bg-slate-100/70 dark:bg-white/5 p-4 sm:p-5">
         <div className="flex gap-2 overflow-x-auto pb-1">
           {days.map((day, index) => (
             <button
@@ -189,7 +189,7 @@ export default function DietPlanRenderer({
               className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${
                 currentDay === index
                   ? 'bg-emerald-500 text-slate-950'
-                  : 'bg-slate-950/70 text-slate-300 hover:bg-slate-900'
+                  : 'bg-slate-200 dark:bg-slate-950/70 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-900'
               }`}
             >
               {day.name}
@@ -232,8 +232,8 @@ export default function DietPlanRenderer({
             </div>
           </div>
           <div>
-            <p className="text-sm uppercase text-slate-400">AI recommendation</p>
-            <p className="mt-1 text-white">{recommendation}</p>
+            <p className="text-sm uppercase text-slate-500 dark:text-slate-400">AI recommendation</p>
+            <p className="mt-1 text-slate-900 dark:text-white">{recommendation}</p>
           </div>
         </Card>
       )}

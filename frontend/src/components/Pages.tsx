@@ -4,8 +4,6 @@ import { Link, useInRouterContext } from 'react-router-dom';
 import { FiBarChart2, FiCheckCircle, FiClock, FiDroplet, FiHeart, FiPieChart, FiTrendingUp, FiTrash2 } from 'react-icons/fi';
 import { Header } from './Header';
 import { InsightCard } from './InsightCard';
-import { MealCard } from './MealCard';
-import { SnackCard } from './SnackCard';
 import { WeekSelector } from './WeekSelector';
 import { generateDietPlan, askNutritionCoach, analyzeBMI, predictWeightTimeline, calorieRecommendations, hydrationRecommendation, explainMacros, progressSummary, healthScore } from '../services/groq';
 import DietPlanRenderer from './DietPlanRenderer';
@@ -75,41 +73,7 @@ function buildWeekDays(start: Date, activeIndex: number) {
   });
 }
 
-const mealPlans = [
-  {
-    image: 'https://images.unsplash.com/photo-1543353071-873f17a7a088?auto=format&fit=crop&w=900&q=80',
-    title: 'Avocado & Egg Power Bowl',
-    description: 'A nutrient-dense start with omega-3s and high protein to fuel your morning.',
-    badge: 'Energy Boost',
-    calories: '366 kcal',
-    protein: '24g',
-    carbs: '18g',
-    fat: '22g',
-    colorIndicator: 'from-cyan-400 to-cyan-300',
-  },
-  {
-    image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80',
-    title: 'Mediterranean Bass & Quinoa',
-    description: 'Optimized for afternoon metabolic stability with slow-burning nutrients.',
-    badge: 'Light & Lean',
-    calories: '348 kcal',
-    protein: '32g',
-    carbs: '28g',
-    fat: '12g',
-    colorIndicator: 'from-violet-400 to-violet-300',
-  },
-  {
-    image: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=900&q=80',
-    title: 'Grass-Fed Steak & Kale',
-    description: 'High-iron dinner designed to support overnight muscle recovery and balance.',
-    badge: 'Recovery',
-    calories: '366 kcal',
-    protein: '38g',
-    carbs: '22g',
-    fat: '14g',
-    colorIndicator: 'from-orange-400 to-orange-300',
-  },
-];
+
 
 function getValidWeightHistory(): { date: string; weight: number }[] {
   try {
@@ -1034,23 +998,58 @@ export function DashboardOverview() {
 }
 
 export function DietPlannerPage() {
+  // Initialize from nv_diet_* keys first, then fall back to nv_user_profile for auto-fill.
+  // No hardcoded fake defaults — fresh users see blank fields.
   const [age, setAge] = useState<number | undefined>(() => {
-    const value = localStorage.getItem('nv_diet_age');
-    return value ? Number(value) : 30;
+    const saved = localStorage.getItem('nv_diet_age');
+    if (saved) return Number(saved);
+    try {
+      const profile = JSON.parse(localStorage.getItem('nv_user_profile') || '');
+      const v = Number(profile?.age);
+      if (!isNaN(v) && v >= 13 && v <= 120) return v;
+    } catch { /* ignore */ }
+    return undefined;
   });
   const [gender, setGender] = useState<'male' | 'female'>(() => {
-    const value = localStorage.getItem('nv_diet_gender');
-    return value === 'female' ? 'female' : 'male';
+    const saved = localStorage.getItem('nv_diet_gender');
+    if (saved === 'female') return 'female';
+    if (saved === 'male') return 'male';
+    try {
+      const profile = JSON.parse(localStorage.getItem('nv_user_profile') || '');
+      if (profile?.gender?.toLowerCase() === 'female') return 'female';
+    } catch { /* ignore */ }
+    return 'male';
   });
   const [height, setHeight] = useState<number | undefined>(() => {
-    const value = localStorage.getItem('nv_diet_height');
-    return value ? Number(value) : 175;
+    const saved = localStorage.getItem('nv_diet_height');
+    if (saved) return Number(saved);
+    const rawH = localStorage.getItem('nv_user_height');
+    if (rawH) { const v = Number(rawH); if (!isNaN(v) && v > 0) return v; }
+    try {
+      const profile = JSON.parse(localStorage.getItem('nv_user_profile') || '');
+      const v = Number(profile?.height);
+      if (!isNaN(v) && v >= 50 && v <= 260) return v;
+    } catch { /* ignore */ }
+    return undefined;
   });
   const [weight, setWeight] = useState<number | undefined>(() => {
-    const value = localStorage.getItem('nv_diet_weight');
-    return value ? Number(value) : 72;
+    const saved = localStorage.getItem('nv_diet_weight');
+    if (saved) return Number(saved);
+    try {
+      const history = JSON.parse(localStorage.getItem('nv_weight_history') || '[]');
+      if (Array.isArray(history) && history.length > 0) {
+        const v = Number(history[0]?.weight);
+        if (!isNaN(v) && v > 0) return v;
+      }
+    } catch { /* ignore */ }
+    try {
+      const profile = JSON.parse(localStorage.getItem('nv_user_profile') || '');
+      const v = Number(profile?.weight);
+      if (!isNaN(v) && v >= 20 && v <= 400) return v;
+    } catch { /* ignore */ }
+    return undefined;
   });
-  const [goal, setGoal] = useState<string>(() => localStorage.getItem('nv_diet_goal') || 'Maintain weight');
+  const [goal, setGoal] = useState<string>(() => localStorage.getItem('nv_diet_goal') || 'Maintain Weight');
   const [dietType, setDietType] = useState<string>(() => localStorage.getItem('nv_diet_type') || 'Balanced');
   const [plan, setPlan] = useState<string | null>(() => localStorage.getItem('nv_diet_plan'));
   const [loading, setLoading] = useState(false);
@@ -1064,14 +1063,14 @@ export function DietPlannerPage() {
     return ((today.getDay() + 6) % 7);
   });
 
-  const isAgeValid = typeof age === 'number' && !Number.isNaN(age) && age >= 18 && age <= 80;
+  const isAgeValid = typeof age === 'number' && !Number.isNaN(age) && age >= 13 && age <= 120;
   const isHeightValid = typeof height === 'number' && !Number.isNaN(height) && height >= 140 && height <= 220;
   const isWeightValid = typeof weight === 'number' && !Number.isNaN(weight) && weight >= 40 && weight <= 150;
   const isFormValid = isAgeValid && isHeightValid && isWeightValid;
 
   const handleGenerate = async () => {
     if (!isFormValid) {
-      setError('Please provide valid inputs: Age (18-80), Height (140-220 cm), Weight (40-150 kg).');
+      setError('Please provide valid inputs: Age (13–120), Height (140–220 cm), Weight (40–150 kg).');
       return;
     }
     setLoading(true);
@@ -1079,10 +1078,14 @@ export function DietPlannerPage() {
     setPlan(null);
     try {
       const reply = await generateDietPlan({ age, gender, height, weight, goal, dietType });
-      setPlan(reply);
+      if (typeof reply === 'string' && reply.startsWith('Error:')) {
+        setError('AI service unavailable. Please try again later.');
+      } else {
+        setPlan(reply);
+      }
     } catch (err: any) {
       console.error(err);
-      setError('Failed to generate diet plan');
+      setError('Failed to generate diet plan. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -1266,150 +1269,148 @@ export function DietPlannerPage() {
         onPreviousWeek={previousWeek}
         onNextWeek={nextWeek}
       />
-      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
-        <div className="space-y-6">
-          <div className="rounded-[32px] border border-white/10 bg-slate-950/80 p-6">
-            <h2 className="text-lg font-semibold text-white">AI Diet Generator</h2>
-            <p className="mt-2 text-sm text-slate-400">Provide a few details and generate a tailored meal plan.</p>
+      <div className="space-y-6">
+        <div className="rounded-[32px] border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-slate-950/80 p-6 shadow-[0_20px_50px_-30px_rgba(0,0,0,0.07)] dark:shadow-[0_30px_70px_-40px_rgba(5,12,31,0.9)] backdrop-blur-xl">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">AI Diet Generator</h2>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Provide a few details and generate a tailored meal plan.</p>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="space-y-2">
-                <label htmlFor="age" className="block text-sm uppercase tracking-[0.3em] text-slate-400">Age</label>
-                <input
-                  id="age"
-                  type="number"
-                  min={18}
-                  max={80}
-                  placeholder="18 - 80"
-                  value={age ?? ''}
-                  onChange={(e) => setAge(Number(e.target.value))}
-                  className="w-full rounded-3xl border border-white/10 bg-slate-950/90 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-                />
-                {age !== undefined && (age < 18 || age > 80) && (
-                  <p className="text-sm text-rose-400">Please enter an age between 18 and 80.</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="gender" className="block text-sm uppercase tracking-[0.3em] text-slate-400">Gender</label>
-                <select
-                  id="gender"
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value as 'male' | 'female')}
-                  className="w-full rounded-3xl border border-white/10 bg-slate-950/90 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-                >
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="height" className="block text-sm uppercase tracking-[0.3em] text-slate-400">Height (cm)</label>
-                <input
-                  id="height"
-                  type="number"
-                  min={140}
-                  max={220}
-                  placeholder="140 - 220"
-                  value={height ?? ''}
-                  onChange={(e) => setHeight(Number(e.target.value))}
-                  className="w-full rounded-3xl border border-white/10 bg-slate-950/90 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-                />
-                {height !== undefined && (height < 140 || height > 220) && (
-                  <p className="text-sm text-rose-400">Height should be between 140 and 220 cm.</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="weight" className="block text-sm uppercase tracking-[0.3em] text-slate-400">Weight (kg)</label>
-                <input
-                  id="weight"
-                  type="number"
-                  min={40}
-                  max={150}
-                  placeholder="40 - 150"
-                  value={weight ?? ''}
-                  onChange={(e) => setWeight(Number(e.target.value))}
-                  className="w-full rounded-3xl border border-white/10 bg-slate-950/90 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-                />
-                {weight !== undefined && (weight < 40 || weight > 150) && (
-                  <p className="text-sm text-rose-400">Weight should be between 40 and 150 kg.</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="goal" className="block text-sm uppercase tracking-[0.3em] text-slate-400">Goal</label>
-                <select
-                  id="goal"
-                  value={goal}
-                  onChange={(e) => setGoal(e.target.value)}
-                  className="w-full rounded-3xl border border-white/10 bg-slate-950/90 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-                >
-                  <option value="Weight Loss">Weight Loss</option>
-                  <option value="Weight Gain">Weight Gain</option>
-                  <option value="Maintain Weight">Maintain Weight</option>
-                  <option value="Muscle Gain">Muscle Gain</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="dietType" className="block text-sm uppercase tracking-[0.3em] text-slate-400">Diet Type</label>
-                <select
-                  id="dietType"
-                  value={dietType}
-                  onChange={(e) => setDietType(e.target.value)}
-                  className="w-full rounded-3xl border border-white/10 bg-slate-950/90 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-                >
-                  <option value="Balanced">Balanced</option>
-                  <option value="Vegetarian">Vegetarian</option>
-                  <option value="Vegan">Vegan</option>
-                  <option value="High Protein">High Protein</option>
-                  <option value="Keto">Keto</option>
-                  <option value="Low Carb">Low Carb</option>
-                </select>
-              </div>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="space-y-2">
+              <label htmlFor="diet-age" className="block text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Age</label>
+              <input
+                id="diet-age"
+                type="number"
+                min={13}
+                max={120}
+                placeholder="13 – 120"
+                value={age ?? ''}
+                onChange={(e) => setAge(e.target.value === '' ? undefined : Number(e.target.value))}
+                className="w-full rounded-3xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/90 px-4 py-3 text-slate-900 dark:text-white outline-none transition focus:border-cyan-500 dark:focus:border-cyan-400"
+              />
+              {age !== undefined && (age < 13 || age > 120) && (
+                <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">Please enter an age between 13 and 120.</p>
+              )}
             </div>
 
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <button
-                onClick={handleGenerate}
-                disabled={loading || !isFormValid}
-                className="w-full rounded-3xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            <div className="space-y-2">
+              <label htmlFor="diet-gender" className="block text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Gender</label>
+              <select
+                id="diet-gender"
+                value={gender}
+                onChange={(e) => setGender(e.target.value as 'male' | 'female')}
+                className="w-full rounded-3xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/90 px-4 py-3 text-slate-900 dark:text-white outline-none transition focus:border-cyan-500 dark:focus:border-cyan-400"
               >
-                {loading ? 'Generating...' : 'Generate AI Diet Plan'}
-              </button>
-              <div className="space-y-1">
-                {error && <div className="text-sm text-rose-400">{error}</div>}
-                {exportError && <div className="text-sm text-rose-400">{exportError}</div>}
-                {toastMessage && <div className="text-sm text-emerald-300">{toastMessage}</div>}
-              </div>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="diet-height" className="block text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Height (cm)</label>
+              <input
+                id="diet-height"
+                type="number"
+                min={140}
+                max={220}
+                placeholder="140 – 220"
+                value={height ?? ''}
+                onChange={(e) => setHeight(e.target.value === '' ? undefined : Number(e.target.value))}
+                className="w-full rounded-3xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/90 px-4 py-3 text-slate-900 dark:text-white outline-none transition focus:border-cyan-500 dark:focus:border-cyan-400"
+              />
+              {height !== undefined && (height < 140 || height > 220) && (
+                <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">Height should be between 140 and 220 cm.</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="diet-weight" className="block text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Weight (kg)</label>
+              <input
+                id="diet-weight"
+                type="number"
+                min={40}
+                max={150}
+                placeholder="40 – 150"
+                value={weight ?? ''}
+                onChange={(e) => setWeight(e.target.value === '' ? undefined : Number(e.target.value))}
+                className="w-full rounded-3xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/90 px-4 py-3 text-slate-900 dark:text-white outline-none transition focus:border-cyan-500 dark:focus:border-cyan-400"
+              />
+              {weight !== undefined && (weight < 40 || weight > 150) && (
+                <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">Weight should be between 40 and 150 kg.</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="diet-goal" className="block text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Goal</label>
+              <select
+                id="diet-goal"
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                className="w-full rounded-3xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/90 px-4 py-3 text-slate-900 dark:text-white outline-none transition focus:border-cyan-500 dark:focus:border-cyan-400"
+              >
+                <option value="Weight Loss">Weight Loss</option>
+                <option value="Weight Gain">Weight Gain</option>
+                <option value="Maintain Weight">Maintain Weight</option>
+                <option value="Muscle Gain">Muscle Gain</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="diet-type" className="block text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Diet Type</label>
+              <select
+                id="diet-type"
+                value={dietType}
+                onChange={(e) => setDietType(e.target.value)}
+                className="w-full rounded-3xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/90 px-4 py-3 text-slate-900 dark:text-white outline-none transition focus:border-cyan-500 dark:focus:border-cyan-400"
+              >
+                <option value="Balanced">Balanced</option>
+                <option value="Vegetarian">Vegetarian</option>
+                <option value="Vegan">Vegan</option>
+                <option value="High Protein">High Protein</option>
+                <option value="Keto">Keto</option>
+                <option value="Low Carb">Low Carb</option>
+              </select>
             </div>
           </div>
 
-          {plan && (
-            <DietPlanRenderer
-              plan={plan}
-              dietType={dietType}
-              goal={goal}
-              regenerate={handleGenerate}
-              selectedDayIndex={selectedDayIndex}
-            />
-          )}
-
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {mealPlans.map((meal) => (
-              <MealCard key={meal.title} {...meal} />
-            ))}
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <button
+              onClick={handleGenerate}
+              disabled={loading || !isFormValid}
+              className="w-full rounded-3xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            >
+              {loading ? 'Generating…' : planAvailable ? 'Regenerate AI Diet Plan' : 'Generate AI Diet Plan'}
+            </button>
+            <div className="space-y-1">
+              {error && <div role="alert" className="text-sm text-rose-600 dark:text-rose-400">{error}</div>}
+              {exportError && <div role="alert" className="text-sm text-rose-600 dark:text-rose-400">{exportError}</div>}
+              {toastMessage && <div role="status" className="text-sm text-emerald-600 dark:text-emerald-300">{toastMessage}</div>}
+            </div>
           </div>
         </div>
-        <aside className="space-y-6">
-          <InsightCard />
-          <SnackCard />
-        </aside>
+
+        {planAvailable ? (
+          <DietPlanRenderer
+            plan={plan!}
+            dietType={dietType}
+            goal={goal}
+            regenerate={handleGenerate}
+            selectedDayIndex={selectedDayIndex}
+          />
+        ) : (
+          !loading && (
+            <div className="rounded-[32px] border border-dashed border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-950/40 p-10 text-center">
+              <p className="text-slate-500 dark:text-slate-400 text-base font-medium">No diet plan yet</p>
+              <p className="mt-2 text-sm text-slate-400 dark:text-slate-500">
+                Fill in the form above and click <span className="font-semibold text-emerald-600 dark:text-emerald-400">Generate AI Diet Plan</span> to create your personalised 7-day meal plan.
+              </p>
+            </div>
+          )
+        )}
       </div>
     </div>
   );
 }
+
 
 export function AINutritionCoach() {
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; text: string }[]>([]);
