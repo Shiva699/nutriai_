@@ -1124,5 +1124,45 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
       expect(screen.getByText('No water intake logged today. Track your water in Water Tracker.')).toBeInTheDocument();
     });
   });
+
+  describe('Dashboard Light & Dark Theme Support', () => {
+    it('contains responsive light background and dark:bg-slate-950 classes on primary overview card', () => {
+      render(<DashboardOverview />);
+
+      const heading = screen.getByRole('heading', { name: 'Welcome back, health champion.' });
+      const card = heading.closest('div[class*="rounded-[32px]"]');
+      expect(card).toBeInTheDocument();
+      expect(card?.className).toContain('bg-white/90');
+      expect(card?.className).toContain('dark:bg-slate-950/80');
+      expect(card?.className).toContain('border-slate-200/80');
+      expect(card?.className).toContain('dark:border-white/10');
+    });
+
+    it('contains responsive text color classes for both light mode and dark mode', () => {
+      render(<DashboardOverview />);
+
+      const heading = screen.getByRole('heading', { name: 'Welcome back, health champion.' });
+      expect(heading.className).toContain('text-slate-900');
+      expect(heading.className).toContain('dark:text-white');
+    });
+
+    it('contains responsive progress bar track classes for light and dark modes', () => {
+      render(<DashboardOverview />);
+
+      const goalProgress = screen.getByRole('progressbar', { name: 'Goal completion progress' });
+      const track = goalProgress.parentElement;
+      expect(track).toBeInTheDocument();
+      expect(track?.className).toContain('bg-slate-100');
+      expect(track?.className).toContain('dark:bg-white/10');
+    });
+
+    it('contains responsive styling on empty-state action links', () => {
+      render(<DashboardOverview />);
+
+      const link = screen.getByRole('link', { name: 'Complete your profile to get started.' });
+      expect(link.className).toContain('text-slate-600');
+      expect(link.className).toContain('dark:text-slate-400');
+    });
+  });
 });
 

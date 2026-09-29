@@ -789,15 +789,15 @@ export function DashboardOverview() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[32px] border border-white/10 bg-slate-950/80 p-8 shadow-[0_30px_70px_-40px_rgba(5,12,31,0.9)] backdrop-blur-xl">
+      <div className="rounded-[32px] border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-slate-950/80 p-8 shadow-[0_20px_50px_-30px_rgba(0,0,0,0.07)] dark:shadow-[0_30px_70px_-40px_rgba(5,12,31,0.9)] backdrop-blur-xl">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-emerald-300/70">Dashboard Overview</p>
-            <h1 className="mt-3 text-3xl font-semibold text-white">Welcome back, health champion.</h1>
+            <p className="text-sm uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-300/70">Dashboard Overview</p>
+            <h1 className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">Welcome back, health champion.</h1>
           </div>
-          <div className="rounded-3xl bg-white/5 px-5 py-4 text-sm text-slate-300 shadow-inner shadow-black/20">
-            <p className="font-semibold text-white">Your next check-in</p>
-            <p className="mt-1 text-slate-400">{checkinText}</p>
+          <div className="rounded-3xl border border-slate-200/60 dark:border-white/5 bg-slate-100 dark:bg-white/5 px-5 py-4 text-sm text-slate-700 dark:text-slate-300 shadow-inner shadow-slate-200/50 dark:shadow-black/20">
+            <p className="font-semibold text-slate-900 dark:text-white">Your next check-in</p>
+            <p className="mt-1 text-slate-500 dark:text-slate-400">{checkinText}</p>
           </div>
         </div>
       </div>
@@ -833,26 +833,26 @@ export function DashboardOverview() {
             detail: waterIntakeDetail,
           },
         ].map((card) => (
-          <div key={card.label} className="rounded-[32px] border border-white/10 bg-slate-950/80 p-6 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.8)] backdrop-blur-xl">
+          <div key={card.label} className="rounded-[32px] border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-slate-950/80 p-6 shadow-[0_20px_50px_-30px_rgba(0,0,0,0.07)] dark:shadow-[0_20px_60px_-40px_rgba(0,0,0,0.8)] backdrop-blur-xl">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm uppercase tracking-[0.3em] text-slate-400">{card.label}</p>
-                <p className="mt-4 text-3xl font-semibold text-white">{card.value}</p>
+                <p className="text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">{card.label}</p>
+                <p className="mt-4 text-3xl font-semibold text-slate-900 dark:text-white">{card.value}</p>
               </div>
               <div className={`flex h-14 w-14 items-center justify-center rounded-3xl bg-gradient-to-br ${card.accent} text-white shadow-lg shadow-slate-950/20`}>
                 <card.icon className="h-6 w-6" />
               </div>
             </div>
-            <p className="mt-5 text-sm text-slate-400">{card.detail}</p>
+            <p className="mt-5 text-sm text-slate-500 dark:text-slate-400">{card.detail}</p>
           </div>
         ))}
       </div>
 
-      <div className="rounded-[32px] border border-white/10 bg-white/5 p-6">
+      <div className="rounded-[32px] border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-white/5 p-6 shadow-[0_20px_50px_-30px_rgba(0,0,0,0.07)] backdrop-blur-xl">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">AI Health Score</p>
-            <p className="mt-2 text-2xl font-semibold text-white">
+            <p className="text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">AI Health Score</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">
               {loadingInsight ? 'Loading...' : (aiHealthScore ? sanitizeAIText(aiHealthScore) : '-')}
             </p>
           </div>
@@ -862,7 +862,7 @@ export function DashboardOverview() {
               disabled={!hasValidHealthData || loadingInsight}
               className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
                 !hasValidHealthData || loadingInsight
-                  ? 'bg-emerald-500/20 text-slate-500 cursor-not-allowed'
+                  ? 'bg-slate-200 dark:bg-emerald-500/20 text-slate-400 dark:text-slate-500 cursor-not-allowed'
                   : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
               }`}
             >
@@ -871,37 +871,37 @@ export function DashboardOverview() {
           </div>
         </div>
         {!hasValidHealthData && (
-          <p className="mt-3 text-sm text-slate-400">
+          <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
             <DashboardLink
               to="/profile-settings"
-              className="text-slate-400 hover:text-emerald-300 underline underline-offset-4 transition focus:outline-none focus:ring-1 focus:ring-emerald-400 rounded"
+              className="text-slate-600 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300 underline underline-offset-4 transition focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400 rounded"
             >
               Complete your profile to generate your AI Health Score.
             </DashboardLink>
           </p>
         )}
         {hasValidHealthData && insightError && (
-          <p className="mt-3 text-sm text-amber-400">
+          <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
             {insightError}
           </p>
         )}
         {hasValidHealthData && dailyInsight && !insightError && (
-          <p className="mt-3 text-sm text-slate-300">
+          <p className="mt-3 text-sm text-slate-700 dark:text-slate-300">
             {sanitizeAIText(dailyInsight)}
           </p>
         )}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="rounded-[32px] border border-white/10 bg-slate-950/80 p-6 shadow-[0_20px_50px_-35px_rgba(0,0,0,0.75)] backdrop-blur-xl">
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="rounded-[32px] border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-slate-950/80 p-6 shadow-[0_20px_50px_-30px_rgba(0,0,0,0.07)] dark:shadow-[0_20px_50px_-35px_rgba(0,0,0,0.75)] backdrop-blur-xl">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-emerald-300/70">Goal completion</p>
-              <h2 className="mt-3 text-xl font-semibold text-white">{goalCompletionText}</h2>
+              <p className="text-sm uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-300/70">Goal completion</p>
+              <h2 className="mt-3 text-xl font-semibold text-slate-900 dark:text-white">{goalCompletionText}</h2>
             </div>
-            <div className="rounded-3xl bg-white/5 px-4 py-2 text-sm text-slate-300">Today</div>
+            <div className="rounded-3xl border border-slate-200/60 dark:border-transparent bg-slate-100 dark:bg-white/5 px-4 py-2 text-sm text-slate-600 dark:text-slate-300">Today</div>
           </div>
-          <div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10">
+          <div className="mt-6 h-3 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
             <div
               role="progressbar"
               aria-valuemin={0}
@@ -912,11 +912,11 @@ export function DashboardOverview() {
               style={{ width: `${goalCompletionPct}%` }}
             />
           </div>
-          <p className="mt-4 text-sm text-slate-400">
+          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
             {goalCompletionDetail === 'Complete your profile to get started.' ? (
               <DashboardLink
                 to="/profile-settings"
-                className="text-slate-400 hover:text-emerald-300 underline underline-offset-4 transition focus:outline-none focus:ring-1 focus:ring-emerald-400 rounded"
+                className="text-slate-600 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300 underline underline-offset-4 transition focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400 rounded"
               >
                 Complete your profile to get started.
               </DashboardLink>
@@ -926,23 +926,23 @@ export function DashboardOverview() {
           </p>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="rounded-[32px] border border-white/10 bg-slate-950/80 p-6 shadow-[0_20px_50px_-35px_rgba(0,0,0,0.75)] backdrop-blur-xl">
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="rounded-[32px] border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-slate-950/80 p-6 shadow-[0_20px_50px_-30px_rgba(0,0,0,0.07)] dark:shadow-[0_20px_50px_-35px_rgba(0,0,0,0.75)] backdrop-blur-xl">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Weekly progress</p>
-              <h2 className="mt-3 text-xl font-semibold text-white">{weeklyProgressText}</h2>
+              <p className="text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Weekly progress</p>
+              <h2 className="mt-3 text-xl font-semibold text-slate-900 dark:text-white">{weeklyProgressText}</h2>
               {validHistory.length > 0 && weeklyProgressStatus && (
-                <p className="mt-1 text-xs text-slate-400">{weeklyProgressStatus}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{weeklyProgressStatus}</p>
               )}
             </div>
-            <FiTrendingUp className="h-6 w-6 text-emerald-300" />
+            <FiTrendingUp className="h-6 w-6 text-emerald-500 dark:text-emerald-300" />
           </div>
           {validHistory.length > 0 ? (
             <div className="mt-6 space-y-3">
               {validHistory.slice(0, 5).map((item, index) => (
-                <div key={item.date || index} className="flex items-center justify-between text-sm text-slate-400">
+                <div key={item.date || index} className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-400">
                   <span>{item.date || `Entry ${index + 1}`}</span>
-                  <span>{typeof item.weight === 'number' ? `${item.weight.toFixed(1)} kg` : item.weight}</span>
+                  <span className="font-medium text-slate-900 dark:text-slate-200">{typeof item.weight === 'number' ? `${item.weight.toFixed(1)} kg` : item.weight}</span>
                 </div>
               ))}
               {validHistory.length === 1 && (
@@ -951,11 +951,11 @@ export function DashboardOverview() {
             </div>
           ) : (
             <div className="mt-6 flex flex-col items-center justify-center py-6 text-center">
-              <p className="text-sm text-slate-400">No data yet</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">No data yet</p>
               <p className="mt-1 text-xs text-slate-500">
                 <DashboardLink
                   to="/weight-tracker"
-                  className="text-slate-500 hover:text-emerald-300 underline underline-offset-4 transition focus:outline-none focus:ring-1 focus:ring-emerald-400 rounded"
+                  className="text-slate-600 hover:text-emerald-600 dark:text-slate-500 dark:hover:text-emerald-300 underline underline-offset-4 transition focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400 rounded"
                 >
                   Log entries in Weight Tracker to see weekly progress.
                 </DashboardLink>
@@ -964,15 +964,15 @@ export function DashboardOverview() {
           )}
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="rounded-[32px] border border-white/10 bg-slate-950/80 p-6 shadow-[0_20px_50px_-35px_rgba(0,0,0,0.75)] backdrop-blur-xl">
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="rounded-[32px] border border-slate-200/80 dark:border-white/10 bg-white/90 dark:bg-slate-950/80 p-6 shadow-[0_20px_50px_-30px_rgba(0,0,0,0.07)] dark:shadow-[0_20px_50px_-35px_rgba(0,0,0,0.75)] backdrop-blur-xl">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Hydration profile</p>
-              <h2 className="mt-3 text-xl font-semibold text-white">{hydrationText}</h2>
+              <p className="text-sm uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Hydration profile</p>
+              <h2 className="mt-3 text-xl font-semibold text-slate-900 dark:text-white">{hydrationText}</h2>
             </div>
-            <FiDroplet className="h-6 w-6 text-cyan-300" />
+            <FiDroplet className="h-6 w-6 text-cyan-500 dark:text-cyan-300" />
           </div>
-          <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10">
+          <div className="mt-6 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
             <div
               role="progressbar"
               aria-valuemin={0}
@@ -983,11 +983,11 @@ export function DashboardOverview() {
               style={{ width: `${hydrationPct}%` }}
             />
           </div>
-          <p className="mt-4 text-sm text-slate-400">
+          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
             {hydrationDetail === 'No water intake logged today. Track your water in Water Tracker.' ? (
               <DashboardLink
                 to="/water-tracker"
-                className="text-slate-400 hover:text-cyan-300 underline underline-offset-4 transition focus:outline-none focus:ring-1 focus:ring-cyan-400 rounded"
+                className="text-slate-600 hover:text-cyan-600 dark:text-slate-400 dark:hover:text-cyan-300 underline underline-offset-4 transition focus:outline-none focus:ring-1 focus:ring-cyan-500 dark:focus:ring-cyan-400 rounded"
               >
                 No water intake logged today. Track your water in Water Tracker.
               </DashboardLink>
