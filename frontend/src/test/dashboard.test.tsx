@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { DashboardOverview } from '../components/Pages';
+import * as groqService from '../services/groq';
 
 describe('DashboardOverview Component - Clean Health Data Suite', () => {
   beforeEach(() => {
@@ -167,5 +168,96 @@ describe('DashboardOverview Component - Clean Health Data Suite', () => {
     expect(localStorage.getItem('nv_current_bmi')).toBeNull();
     expect(localStorage.getItem('nv_current_weight')).toBeNull();
     expect(localStorage.getItem('nv_water_intake')).toBeNull();
+  });
+
+  describe('Dashboard AI Health Score - Empty State & Validation', () => {
+    it('disables Refresh button and shows empty state message when no profile data exists', () => {
+      render(<DashboardOverview />);
+
+      const refreshBtn = screen.getByRole('button', { name: /Refresh/i });
+      expect(refreshBtn).toBeDisabled();
+      expect(screen.getByText('Complete your profile to generate your AI Health Score.')).toBeInTheDocument();
+      expect(screen.getByText('-')).toBeInTheDocument();
+    });
+
+    it('does NOT make AI/API request when clicked without profile data', () => {
+      const healthScoreSpy = vi.spyOn(groqService, 'healthScore');
+      const coachSpy = vi.spyOn(groqService, 'askNutritionCoach');
+
+      render(<DashboardOverview />);
+
+      const refreshBtn = screen.getByRole('button', { name: /Refresh/i });
+      fireEvent.click(refreshBtn);
+
+      expect(healthScoreSpy).not.toHaveBeenCalled();
+      expect(coachSpy).not.toHaveBeenCalled();
+    });
+
+    it('allows generating AI Health Score and calls API with valid profile data', async () => {
+      const profile = {
+        fullName: 'Sarah Connor',
+        email: 'sarah@example.com',
+        age: '30',
+        gender: 'Female',
+        height: '165',
+        weight: '60',
+        fitnessGoal: 'Stay fit',
+      };
+      localStorage.setItem('nv_user_profile', JSON.stringify(profile));
+
+      const healthScoreSpy = vi.spyOn(groqService, 'healthScore').mockResolvedValue('88/100 Optimal');
+      const coachSpy = vi.spyOn(groqService, 'askNutritionCoach').mockResolvedValue('Excellent recovery metrics today.');
+
+      render(<DashboardOverview />);
+
+      const refreshBtn = screen.getByRole('button', { name: /Refresh/i });
+      expect(refreshBtn).toBeEnabled();
+      expect(screen.queryByText('Complete your profile to generate your AI Health Score.')).not.toBeInTheDocument();
+
+      fireEvent.click(refreshBtn);
+
+      await waitFor(() => {
+        expect(healthScoreSpy).toHaveBeenCalledWith(expect.objectContaining({
+          height: 165,
+          weight: 60,
+          age: '30',
+          gender: 'Female',
+          fitnessGoal: 'Stay fit',
+        }));
+        expect(coachSpy).toHaveBeenCalled();
+        expect(screen.getByText('88/100 Optimal')).toBeInTheDocument();
+        expect(screen.getByText('Excellent recovery metrics today.')).toBeInTheDocument();
+      });
+    });
+
+    it('handles API failure gracefully without breaking dashboard or exposing raw errors', async () => {
+      const profile = {
+        fullName: 'Sarah Connor',
+        email: 'sarah@example.com',
+        age: '30',
+        gender: 'Female',
+        height: '165',
+        weight: '60',
+        fitnessGoal: 'Stay fit',
+      };
+      localStorage.setItem('nv_user_profile', JSON.stringify(profile));
+
+      vi.spyOn(groqService, 'healthScore').mockRejectedValue(new Error('Internal server error 500'));
+      vi.spyOn(groqService, 'askNutritionCoach').mockRejectedValue(new Error('API failure'));
+
+      render(<DashboardOverview />);
+
+      const refreshBtn = screen.getByRole('button', { name: /Refresh/i });
+      fireEvent.click(refreshBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText('Unable to generate AI Health Score. Please try again later.')).toBeInTheDocument();
+      });
+
+      // Raw error message is not exposed
+      expect(screen.queryByText(/Internal server error 500/i)).not.toBeInTheDocument();
+      // Dashboard remains usable with score showing '-'
+      expect(screen.getByText('-')).toBeInTheDocument();
+    });
   });
 });

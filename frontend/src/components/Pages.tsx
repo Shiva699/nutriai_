@@ -142,6 +142,8 @@ export function DashboardOverview() {
     hydrationText,
     hydrationPct,
     hydrationDetail,
+    hasValidHealthData,
+    healthPayload,
   } = useMemo(() => {
     // 1. Next Check-in
     const storedCheckin = localStorage.getItem('nv_next_checkin');
@@ -305,6 +307,33 @@ export function DashboardOverview() {
         : 'Stay on track by adding a glass of water throughout the day.';
     }
 
+    const isValidNum = (val: unknown): boolean => {
+      if (val === null || val === undefined) return false;
+      if (typeof val === 'number') return !isNaN(val) && val > 0;
+      if (typeof val === 'string') {
+        const s = val.trim();
+        if (!s || s === '--' || s === '-') return false;
+        const n = Number(s);
+        return !isNaN(n) && n > 0;
+      }
+      return false;
+    };
+
+    const hasValidHealth = Boolean(
+      userProfile &&
+      (isValidNum(userProfile.weight) || isValidNum(weightVal)) &&
+      (isValidNum(userProfile.height) || isValidNum(heightVal))
+    );
+
+    const healthPayload = hasValidHealth ? {
+      age: userProfile?.age?.trim() || undefined,
+      gender: userProfile?.gender?.trim() || undefined,
+      height: heightVal ?? (isValidNum(userProfile?.height) ? Number(userProfile?.height) : undefined),
+      weight: weightVal ?? (isValidNum(userProfile?.weight) ? Number(userProfile?.weight) : undefined),
+      bmi: bText !== '--' ? bText : undefined,
+      fitnessGoal: userProfile?.fitnessGoal?.trim() || undefined,
+    } : null;
+
     return {
       checkinText: checkin,
       dailyCaloriesText: calText,
@@ -323,18 +352,32 @@ export function DashboardOverview() {
       hydrationText: hydText,
       hydrationPct: hydPct,
       hydrationDetail: hydDetail,
+      hasValidHealthData: hasValidHealth,
+      healthPayload,
     };
   }, []);
 
+  const [insightError, setInsightError] = useState<string | null>(null);
+
   const loadInsights = async () => {
+    if (!hasValidHealthData || !healthPayload) return;
     setLoadingInsight(true);
+    setInsightError(null);
     try {
-      const score = await healthScore({});
-      setAiHealthScore(score);
+      const score = await healthScore(healthPayload);
+      if (typeof score === 'string' && score.startsWith('Error:')) {
+        setInsightError('Unable to generate AI Health Score. Please try again later.');
+      } else {
+        setAiHealthScore(score);
+      }
+
       const insight = await askNutritionCoach('Provide a one-line daily health insight for the user.');
-      setDailyInsight(insight);
+      if (typeof insight === 'string' && !insight.startsWith('Error:')) {
+        setDailyInsight(insight);
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load AI health score:', err);
+      setInsightError('Unable to generate AI Health Score. Please try again later.');
     } finally {
       setLoadingInsight(false);
     }
@@ -405,13 +448,39 @@ export function DashboardOverview() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-slate-400">AI Health Score</p>
-            <p className="mt-2 text-2xl font-semibold text-white">{loadingInsight ? 'Loading...' : (aiHealthScore ? sanitizeAIText(aiHealthScore) : '-')}</p>
+            <p className="mt-2 text-2xl font-semibold text-white">
+              {loadingInsight ? 'Loading...' : (aiHealthScore ? sanitizeAIText(aiHealthScore) : '-')}
+            </p>
           </div>
           <div>
-            <button onClick={loadInsights} className="rounded-2xl bg-emerald-500 px-4 py-2 text-sm text-slate-950">Refresh</button>
+            <button
+              onClick={loadInsights}
+              disabled={!hasValidHealthData || loadingInsight}
+              className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
+                !hasValidHealthData || loadingInsight
+                  ? 'bg-emerald-500/20 text-slate-500 cursor-not-allowed'
+                  : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
+              }`}
+            >
+              {loadingInsight ? 'Generating...' : 'Refresh'}
+            </button>
           </div>
         </div>
-        {dailyInsight && <p className="mt-3 text-sm text-slate-300">{sanitizeAIText(dailyInsight)}</p>}
+        {!hasValidHealthData && (
+          <p className="mt-3 text-sm text-slate-400">
+            Complete your profile to generate your AI Health Score.
+          </p>
+        )}
+        {hasValidHealthData && insightError && (
+          <p className="mt-3 text-sm text-amber-400">
+            {insightError}
+          </p>
+        )}
+        {hasValidHealthData && dailyInsight && !insightError && (
+          <p className="mt-3 text-sm text-slate-300">
+            {sanitizeAIText(dailyInsight)}
+          </p>
+        )}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3">
